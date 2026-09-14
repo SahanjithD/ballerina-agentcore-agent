@@ -1,0 +1,76 @@
+openapi: 3.0.3
+info:
+  title: Open-Meteo Weather
+  description: Free public weather API. No authentication required.
+  version: "1.0.0"
+servers:
+  - url: https://api.open-meteo.com
+paths:
+  /v1/forecast:
+    get:
+      # Gateway derives the MCP tool name from operationId, and the model picks
+      # the tool by reading `summary`/`description` -- so both are load-bearing.
+      operationId: getCurrentWeather
+      summary: Get the current weather for a latitude and longitude
+      description: >-
+        Returns the current temperature, apparent temperature, relative humidity
+        and wind speed for a geographic coordinate. Use this whenever the user
+        asks about weather, temperature or wind at a place. Latitude and
+        longitude must be decimal degrees; look them up yourself if the user
+        names a city.
+      parameters:
+        - name: latitude
+          in: query
+          required: true
+          description: Latitude in decimal degrees, -90 to 90.
+          schema:
+            type: number
+            format: float
+        - name: longitude
+          in: query
+          required: true
+          description: Longitude in decimal degrees, -180 to 180.
+          schema:
+            type: number
+            format: float
+        - name: current
+          in: query
+          required: true
+          description: >-
+            Comma-separated list of current-weather fields. Use
+            "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m".
+          schema:
+            type: string
+        - name: timezone
+          in: query
+          required: false
+          description: IANA timezone name, or "auto" to infer from the coordinates.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current conditions at the requested coordinate.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  latitude:
+                    type: number
+                  longitude:
+                    type: number
+                  timezone:
+                    type: string
+                  current:
+                    type: object
+                    properties:
+                      time:
+                        type: string
+                      temperature_2m:
+                        type: number
+                      apparent_temperature:
+                        type: number
+                      relative_humidity_2m:
+                        type: number
+                      wind_speed_10m:
+                        type: number
