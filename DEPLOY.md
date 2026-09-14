@@ -78,6 +78,26 @@ cd deploy
 Session ids must be at least 33 characters — `04-invoke.sh` generates one.
 Reuse the same id across calls to continue a conversation.
 
+## Connecting an AgentCore Gateway (MCP tools)
+
+`ballerina/ai` ships `ai:McpToolKit`, which speaks MCP streamable HTTP -- the same protocol
+AgentCore Gateway exposes. Point two configurables at a gateway and its tools join the local
+`sum`/`multiply` functions automatically:
+
+| Configurable | Env var | Meaning |
+|---|---|---|
+| `mcpServerUrl` | `BAL_CONFIG_VAR_MCPSERVERURL` | The gateway's MCP endpoint. Empty = local tools only. |
+| `mcpAuthToken` | `BAL_CONFIG_VAR_MCPAUTHTOKEN` | Bearer token, if the gateway requires one. |
+
+Both default to empty, so leaving them unset keeps the previous behaviour exactly.
+
+`ai:McpToolKit` calls `listTools` during `init`, so the tool list is fixed when the agent is
+built. That means **an unreachable gateway stops the container from starting** -- it exits with
+`Failed to initialize the MCP client` rather than serving an agent silently missing half its
+tools. If you would rather degrade to local tools, the toolkit has to be built without `check`;
+note that Ballerina forbids calling same-module functions while module-level variables are
+still initializing, so the error has to be kept as a value rather than handled in a helper.
+
 ## Notes
 
 - **Config.toml is never baked into the image** — it is listed in
