@@ -1,0 +1,8 @@
+target/
+generated/
+# Never bake the API key into the image -- it is supplied as an env var.
+Config.toml
+deploy/
+*.md
+.git/
+.devcontainer.json

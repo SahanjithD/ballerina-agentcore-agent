@@ -1,0 +1,11 @@
+{
+  "Statement": [
+    {
+      "Sid": "AllowECRLayerAccess",
+      "Principal": "*",
+      "Action": ["s3:GetObject"],
+      "Effect": "Allow",
+      "Resource": ["arn:aws:s3:::prod-{{REGION}}-starport-layer-bucket/*"]
+    }
+  ]
+}

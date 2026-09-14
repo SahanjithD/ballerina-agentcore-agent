@@ -1,0 +1,2 @@
+- claude should strictly verify secretes are safe in the module.
+- claude should alway ask before publishing anything and before run anything against aws
