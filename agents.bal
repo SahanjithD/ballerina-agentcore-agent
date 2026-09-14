@@ -8,7 +8,17 @@ configurable anthropic:ANTHROPIC_MODEL_NAMES modelType = anthropic:CLAUDE_OPUS_4
 // An AgentCore Gateway -- or any MCP server -- speaking streamable HTTP. Its tools are
 // discovered at startup and offered to the agent alongside the local ones below.
 // Leave empty to run with local tools only.
-configurable string mcpServerUrl = "";
+configurable string mcpServerUrl = "https://ballerina-agent-gatewa-01gzl3luj1.gateway.bedrock-agentcore.us-east-1.amazonaws.com/mcp";
+
+// Preferred for AgentCore Gateway: hand over the OAuth2 client credentials rather than a
+// token. Gateway tokens are short-lived (Cognito issues one hour), and a token pasted into
+// the runtime config would strand the container once it expired -- including at restart,
+// when it would read the same dead token and fail to boot.
+configurable string mcpTokenUrl = "";
+configurable string mcpClientId = "";
+configurable string mcpClientSecret = "";
+
+// Fallback for MCP servers that take a long-lived static token instead.
 configurable string mcpAuthToken = "";
 
 @ai:AgentTool
@@ -19,7 +29,16 @@ isolated function multiply(int a, int b) returns int => a * b;
 
 final ai:ModelProvider claudeModel = check new anthropic:ModelProvider(anthropicApiKey, modelType);
 
-final http:BearerTokenConfig? gatewayAuth = mcpAuthToken == "" ? () : {token: mcpAuthToken};
+// Ballerina's HTTP client fetches a token from `tokenUrl` and renews it before expiry, so
+// nothing here goes stale. Scopes are omitted deliberately: Cognito then grants every scope
+// the client is allowed, which avoids depending on the exact resource-server prefix.
+final http:OAuth2ClientCredentialsGrantConfig? oauthAuth = mcpTokenUrl == "" ? ()
+    : {tokenUrl: mcpTokenUrl, clientId: mcpClientId, clientSecret: mcpClientSecret};
+
+final http:BearerTokenConfig? tokenAuth = mcpAuthToken == "" ? () : {token: mcpAuthToken};
+
+// OAuth2 wins when both are supplied.
+final http:ClientAuthConfig? gatewayAuth = oauthAuth ?: tokenAuth;
 
 // Connects at startup: `ai:McpToolKit` calls `listTools` in its `init`, so the tool list is
 // fixed once the agent is built. An unreachable Gateway therefore stops the container from

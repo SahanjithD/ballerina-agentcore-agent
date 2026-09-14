@@ -87,9 +87,21 @@ AgentCore Gateway exposes. Point two configurables at a gateway and its tools jo
 | Configurable | Env var | Meaning |
 |---|---|---|
 | `mcpServerUrl` | `BAL_CONFIG_VAR_MCPSERVERURL` | The gateway's MCP endpoint. Empty = local tools only. |
-| `mcpAuthToken` | `BAL_CONFIG_VAR_MCPAUTHTOKEN` | Bearer token, if the gateway requires one. |
+| `mcpTokenUrl` | `BAL_CONFIG_VAR_MCPTOKENURL` | OAuth2 token endpoint (Cognito `/oauth2/token`). |
+| `mcpClientId` | `BAL_CONFIG_VAR_MCPCLIENTID` | OAuth2 client id. |
+| `mcpClientSecret` | `BAL_CONFIG_VAR_MCPCLIENTSECRET` | OAuth2 client secret. |
+| `mcpAuthToken` | `BAL_CONFIG_VAR_MCPAUTHTOKEN` | Static bearer token, for servers that use one instead. |
 
-Both default to empty, so leaving them unset keeps the previous behaviour exactly.
+**Pass the OAuth2 credentials, not a token.** AgentCore Gateway's Cognito tokens last one
+hour. A token placed in the runtime config stops working after that, and -- because the
+toolkit is built with `check` -- the container then fails to *start* on its next recycle,
+reading the same dead token. Given `mcpTokenUrl`/`mcpClientId`/`mcpClientSecret`, Ballerina's
+HTTP client mints tokens itself and renews them before expiry. `mcpAuthToken` remains for MCP
+servers that issue long-lived tokens; OAuth2 wins if both are set.
+
+Scopes are deliberately not configurable. Cognito grants every scope the client is allowed
+when none is requested, which sidesteps the resource-server prefix (the scope is
+`<resource-server-id>/<scope-name>`, and quick-create may truncate the identifier).
 
 `ai:McpToolKit` calls `listTools` during `init`, so the tool list is fixed when the agent is
 built. That means **an unreachable gateway stops the container from starting** -- it exits with
