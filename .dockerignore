@@ -6,3 +6,5 @@ deploy/
 *.md
 .git/
 .devcontainer.json
+tools/
+gateway/

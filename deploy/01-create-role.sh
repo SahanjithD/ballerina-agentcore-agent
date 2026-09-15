@@ -4,7 +4,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 source ./config.env
 
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+# STS is only needed to learn the account id. Export ACCOUNT_ID to skip the call --
+# useful when the STS endpoint is blocked but ECR is reachable.
+ACCOUNT_ID="${ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 echo "Account ${ACCOUNT_ID}, region ${AWS_REGION}, role ${EXECUTION_ROLE_NAME}"
 
 TRUST=$(cat <<JSON

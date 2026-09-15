@@ -11,7 +11,9 @@ set -euo pipefail
 cd "$(dirname "$0")"
 source ./config.env
 
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+# STS is only needed to learn the account id. Export ACCOUNT_ID to skip the call --
+# useful when the STS endpoint is blocked but ECR is reachable.
+ACCOUNT_ID="${ACCOUNT_ID:-$(aws sts get-caller-identity --query Account --output text)}"
 IMAGE_URI="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO}:${IMAGE_TAG}"
 ROLE_ARN=$(aws iam get-role --role-name "${EXECUTION_ROLE_NAME}" --query Role.Arn --output text)
 

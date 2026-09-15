@@ -44,6 +44,13 @@ arm64 image. On an x86 machine or CI runner it does not, and AgentCore rejects
 the image with an unhelpful error — hence the explicit
 `--platform linux/arm64` inside [`deploy/02-push-image.sh`](deploy/02-push-image.sh).
 
+**`--provenance=false` is the second half of that gotcha.** By default `buildx`
+pushes an attestation manifest alongside an OCI manifest list rather than a single
+image manifest. AgentCore Runtime rejects that shape with an unhelpful error, and
+Lambda rejects it with `image manifest ... not supported`. Every `buildx` call in
+[`deploy/`](deploy/) passes the flag for this reason — dropping it produces an image
+that pushes cleanly and only fails later, at deploy time.
+
 ## One-time setup
 
 1. **Store the Anthropic API key in Secrets Manager.** The agent calls the
@@ -103,12 +110,122 @@ Scopes are deliberately not configurable. Cognito grants every scope the client 
 when none is requested, which sidesteps the resource-server prefix (the scope is
 `<resource-server-id>/<scope-name>`, and quick-create may truncate the identifier).
 
+Confirmed on this gateway: the scope Cognito actually grants is
+`ballerina-agent-gatewa/genesis-gateway:invoke` — the resource-server id is truncated
+to 22 characters (`...gatewa`, not `...gateway`) and the separator before the scope
+name is `:`, not `/`. Requesting `genesis-gateway/invoke` returns `invalid_scope`.
+Omitting `scope` entirely avoids having to know any of this.
+
 `ai:McpToolKit` calls `listTools` during `init`, so the tool list is fixed when the agent is
 built. That means **an unreachable gateway stops the container from starting** -- it exits with
 `Failed to initialize the MCP client` rather than serving an agent silently missing half its
 tools. If you would rather degrade to local tools, the toolkit has to be built without `check`;
 note that Ballerina forbids calling same-module functions while module-level variables are
 still initializing, so the error has to be kept as a value rather than handled in a helper.
+
+## Hosting your own tools behind the Gateway
+
+Two Ballerina backends live in [`tools/`](tools/) and attach to the same gateway:
+
+| | [`tools/mcp-server`](tools/mcp-server) | [`tools/rest-api`](tools/rest-api) |
+|---|---|---|
+| What it is | MCP server (`ballerina/mcp`) | REST service (`ballerina/http`) |
+| Hosted on | **AgentCore Runtime**, `serverProtocol: MCP` | **Lambda** container image + Function URL |
+| Gateway target | `mcp.mcpServer` | `mcp.openApiSchema` |
+| Outbound auth | SigV4 as the gateway role | SigV4 as the gateway role |
+| Tools it adds | `countWords`, `whoAmI` | `greetPerson`, `generateUuids` |
+
+### AgentCore hosts the MCP server, but not the REST API
+
+AgentCore Runtime supports MCP natively, so the Ballerina MCP server deploys through
+the same ECR pipeline as the agent — only the protocol changes. But the Runtime
+contract mounts a **fixed path per protocol**, and that is what rules it out for a
+REST API:
+
+| Protocol | Port | Mount path |
+|---|---|---|
+| HTTP | 8080 | `/invocations`, `/ws` |
+| MCP | 8000 | `/mcp` |
+| A2A | 9000 | `/` |
+
+There is no route to `/v1/greet/{name}` — every call is funnelled through
+`/invocations` — so the REST API has to be hosted elsewhere.
+
+**Lambda Function URLs are the cheapest AWS host that satisfies the Gateway.** The
+Gateway needs a publicly trusted TLS certificate, which `*.lambda-url.<region>.on.aws`
+provides with no domain, ACM certificate or load balancer. Two alternatives do not
+work as well:
+
+- **App Runner** would have been the obvious choice, but it is
+  [closed to new customers](https://docs.aws.amazon.com/apprunner/latest/dg/apprunner-availability-change.html).
+- **ALB + Fargate** needs a domain and an ACM certificate, because an ALB's default
+  `*.elb.amazonaws.com` name has no valid certificate — and an ALB cannot verify
+  SigV4, so the gateway would need an API key or OAuth instead.
+
+The [AWS Lambda Web Adapter](https://github.com/awslabs/aws-lambda-web-adapter) is
+what lets an unmodified `http:Listener` serve a Function URL. It is copied into the
+image as an `/opt/extensions` binary, so it bridges the Lambda Runtime API to a plain
+HTTP server and **no Lambda-specific code appears in the Ballerina service at all**.
+
+### No shared secrets on either path
+
+Both targets use `GATEWAY_IAM_ROLE` outbound auth: the gateway signs with SigV4 as
+its own execution role. That is only possible because AgentCore Runtime and Lambda
+Function URLs both verify SigV4 natively (an ALB or bare EC2 endpoint cannot). So
+there is no API key or client secret anywhere in this path — nothing to store,
+rotate, or leak. The MCP server needs no configuration secrets either; unlike the
+agent, it holds no Anthropic key.
+
+### Deploy
+
+```bash
+cd deploy
+# Set GATEWAY_ID in config.env first.
+./10-deploy-mcp-runtime.sh    # MCP server -> AgentCore Runtime (serverProtocol MCP)
+./20-deploy-rest-lambda.sh    # REST API -> Lambda + Function URL, rewrites the spec's server URL
+./30-add-gateway-targets.sh   # both targets + the IAM grants the gateway needs
+```
+
+`20-deploy-rest-lambda.sh` rewrites the `servers:` URL in
+[`gateway/tools-api-openapi.yaml`](gateway/tools-api-openapi.yaml) with the real
+Function URL, so run it before `30`.
+
+The agent picks the new tools up **on its next restart**, not immediately —
+`ai:McpToolKit` calls `listTools` in its `init`, so the tool list is fixed when the
+container boots.
+
+### Testing locally
+
+Neither backend needs AWS to run:
+
+```bash
+cd tools/mcp-server && bal run          # then POST JSON-RPC to localhost:8000/mcp
+cd tools/rest-api   && bal run          # then curl localhost:8080/v1/greet/you
+```
+
+```bash
+curl -X POST http://localhost:8000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
+```
+
+### Regenerating the OpenAPI spec
+
+`bal openapi -i service.bal` (after `bal tool pull openapi`) derives a spec from the
+service, but its output is **not** Gateway-ready — it is a starting point, not the
+artifact. [`gateway/tools-api-openapi.yaml`](gateway/tools-api-openapi.yaml) is
+curated from it because the Gateway needs:
+
+- a **static, fully qualified** `servers` URL. `bal openapi` emits a templated
+  `{server}:{port}` form, and Gateway rejects dynamic host placeholders as an SSRF risk.
+- meaningful **`operationId`s** — the operationId becomes the MCP tool name, and the
+  generated `getGreetName` makes a poor one.
+- **`summary`/`description`** on every operation, which is what the model reads to
+  pick a tool. `bal openapi` does not emit them.
+- no `/health` path, which should not be exposed as a tool.
+
+Gateway also rejects `oneOf`/`anyOf`/`allOf`, so keep response schemas flat.
 
 ## Notes
 

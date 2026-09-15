@@ -1,0 +1,84 @@
+openapi: 3.0.3
+info:
+  title: Ballerina Tools API
+  description: >-
+    A small Ballerina REST service hosted on AWS Lambda behind a Function URL,
+    exposed to agents as MCP tools by AgentCore Gateway.
+  version: "1.0.0"
+servers:
+  # Rewritten by deploy/20-deploy-rest-lambda.sh with the real Function URL.
+  # Gateway requires a static, fully qualified HTTPS URL here -- it rejects the
+  # templated `{server}:{port}` form that `bal openapi` emits by default, and
+  # dynamic host placeholders are an SSRF risk it warns about explicitly.
+  - url: https://REPLACE_WITH_FUNCTION_URL/v1
+paths:
+  /greet/{name}:
+    get:
+      # Gateway derives the MCP tool name from operationId, and the model picks the
+      # tool by reading summary/description -- so all three are load-bearing. The
+      # `bal openapi` defaults (getGreetName) are accurate but make poor tool names.
+      operationId: greetPerson
+      summary: Generate a greeting for a named person
+      description: >-
+        Returns a greeting addressed to the given name, along with which backend
+        produced it and the time it was produced. Use this to confirm that a call
+        reached the Ballerina REST API rather than some other tool.
+      parameters:
+        - name: name
+          in: path
+          required: true
+          description: The name of the person to greet.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: The greeting.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  servedBy:
+                    type: string
+                  utcTime:
+                    type: string
+  /uuid:
+    get:
+      operationId: generateUuids
+      summary: Generate one or more random UUIDs
+      description: >-
+        Returns freshly generated random UUID version 4 strings. Use this whenever
+        the user asks for a UUID, a GUID or a random unique identifier.
+      parameters:
+        - name: count
+          in: query
+          required: false
+          description: How many UUIDs to generate, from 1 to 20. Defaults to 1.
+          schema:
+            type: integer
+            default: 1
+      responses:
+        "200":
+          description: The generated identifiers.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uuids:
+                    type: array
+                    items:
+                      type: string
+                  count:
+                    type: integer
+        "400":
+          description: count was outside the range 1 to 20.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
