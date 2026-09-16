@@ -6,3 +6,11 @@ distribution = "2201.13.5"
 
 [build-options]
 observabilityIncluded = true
+
+# Observability extension. Not imported by any `.bal` file -- it is loaded at runtime
+# by `tracingProvider = "otel"` in Config.toml, so it has to be declared here to be
+# bundled into the jar.
+[[dependency]]
+org = "ballerina"
+name = "otel"
+version = "0.9.0"

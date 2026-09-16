@@ -1,3 +1,4 @@
+import ballerina/log;
 import ballerina/mcp;
 import ballerina/time;
 
@@ -39,6 +40,10 @@ service mcp:StreamableHttpService /mcp on mcpListener {
     # + text - The text whose words should be counted
     # + return - The number of words found
     remote function countWords(string text) returns int {
+        // Logged because an AgentCore container that prints nothing is ambiguous: an
+        // empty log group reads the same whether the server never started or is
+        // serving happily. One line per call distinguishes the two.
+        log:printInfo("tool called", tool = "countWords", chars = text.length());
         int count = 0;
         foreach string token in re `\s+`.split(text.trim()) {
             if token != "" {
@@ -52,10 +57,13 @@ service mcp:StreamableHttpService /mcp on mcpListener {
     # backend a tool actually reached.
     #
     # + return - The server's name, language and hosting platform
-    remote function whoAmI() returns ServerIdentity => {
-        server: "Ballerina Tools",
-        language: "Ballerina 2201.13.5 (Swan Lake Update 13)",
-        hostedOn: "Amazon Bedrock AgentCore Runtime",
-        utcTime: time:utcToString(time:utcNow())
-    };
+    remote function whoAmI() returns ServerIdentity {
+        log:printInfo("tool called", tool = "whoAmI");
+        return {
+            server: "Ballerina Tools",
+            language: "Ballerina 2201.13.5 (Swan Lake Update 13)",
+            hostedOn: "Amazon Bedrock AgentCore Runtime",
+            utcTime: time:utcToString(time:utcNow())
+        };
+    }
 }

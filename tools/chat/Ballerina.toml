@@ -1,0 +1,10 @@
+[package]
+org = "dasun"
+name = "tools_chat"
+version = "0.1.0"
+distribution = "2201.13.5"
+
+[[dependency]]
+org = "ballerinax"
+name = "aws"
+version = "1.0.2"

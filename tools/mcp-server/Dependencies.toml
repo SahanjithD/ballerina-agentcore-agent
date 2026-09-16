@@ -209,6 +209,9 @@ dependencies = [
 	{org = "ballerina", name = "lang.value"},
 	{org = "ballerina", name = "observe"}
 ]
+modules = [
+	{org = "ballerina", packageName = "log", moduleName = "log"}
+]
 
 [[package]]
 org = "ballerina"
@@ -322,6 +325,7 @@ org = "dasun"
 name = "tools_mcp_server"
 version = "0.1.0"
 dependencies = [
+	{org = "ballerina", name = "log"},
 	{org = "ballerina", name = "mcp"},
 	{org = "ballerina", name = "time"},
 	{org = "ballerinai", name = "observe"}

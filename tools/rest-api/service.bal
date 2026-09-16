@@ -1,4 +1,5 @@
 import ballerina/http;
+import ballerina/log;
 import ballerina/time;
 import ballerina/uuid;
 
@@ -39,15 +40,19 @@ service /v1 on new http:Listener(port) {
     // AWS_LWA_READINESS_CHECK_PATH so a cold JVM is never handed a real request.
     resource function get health() returns json => {status: "ok"};
 
-    resource function get greet/[string name]() returns Greeting => {
-        message: string `Hello, ${name}!`,
-        servedBy: "Ballerina REST API on AWS Lambda",
-        utcTime: time:utcToString(time:utcNow())
-    };
+    resource function get greet/[string name]() returns Greeting {
+        log:printInfo("request", operation = "greetPerson");
+        return {
+            message: string `Hello, ${name}!`,
+            servedBy: "Ballerina REST API on AWS Lambda",
+            utcTime: time:utcToString(time:utcNow())
+        };
+    }
 
     resource function get uuid(int count = 1) returns UuidBatch|http:BadRequest {
         // Bounded deliberately: `count` reaches this straight from a model-generated
         // tool call, so an unbounded value is an easy way to burn the Lambda timeout.
+        log:printInfo("request", operation = "generateUuids", count = count);
         if count < 1 || count > 20 {
             return <http:BadRequest>{
                 body: <ErrorMessage>{message: "count must be between 1 and 20"}

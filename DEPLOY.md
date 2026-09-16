@@ -194,6 +194,50 @@ The agent picks the new tools up **on its next restart**, not immediately —
 `ai:McpToolKit` calls `listTools` in its `init`, so the tool list is fixed when the
 container boots.
 
+### Traps that cost real time
+
+**The console attaches a JWT authorizer to MCP runtimes by default.** Creating an
+AgentCore runtime through the console silently spins up a new Cognito pool and sets
+`customJWTAuthorizer` on the runtime. A runtime expecting a JWT rejects the gateway's
+SigV4 signature forever, and the gateway reports only `Authorization error when
+sending message` — which looks exactly like a missing IAM grant, so you can fix the
+IAM policy repeatedly and change nothing. Check it explicitly:
+
+```bash
+aws bedrock-agentcore-control get-agent-runtime --region us-east-1 \
+  --agent-runtime-id <id> \
+  --query '{protocol:protocolConfiguration.serverProtocol,authorizer:authorizerConfiguration}'
+```
+
+You want `"authorizer": null`. `10-deploy-mcp-runtime.sh` omits the authorizer
+configuration for this reason, so the CLI path gets IAM inbound auth by default.
+
+**The console also defaults the protocol to `HTTP`.** An MCP image on an `HTTP`
+runtime is probed at `:8080/ping` and routed to `/invocations`, so nothing ever
+reaches the server on `:8000/mcp`. The symptom is an empty log group — the container
+never receives a request — while the runtime still reports `READY`.
+
+**Function URLs need two grants, not one.** The gateway role needs
+`lambda:InvokeFunctionUrl` in its identity policy *and* the function needs a
+resource-based policy naming that role. The resource statement must carry the
+condition:
+
+```json
+"Condition": { "StringEquals": { "lambda:FunctionUrlAuthType": "AWS_IAM" } }
+```
+
+Without it the statement authorises plain `Invoke` but not Function URL calls, and
+returns 403 while looking correct in the console. The console's add-permissions form
+can also write `"Principal": {}` — an empty principal that grants nothing. Prefer:
+
+```bash
+aws lambda add-permission --function-name <fn> --region us-east-1 \
+  --statement-id AllowAgentCoreGateway --action lambda:InvokeFunctionUrl \
+  --principal <gateway-role-arn> --function-url-auth-type AWS_IAM
+```
+
+which fills in both the principal and the condition correctly.
+
 ### Testing locally
 
 Neither backend needs AWS to run:
