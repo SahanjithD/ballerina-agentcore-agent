@@ -1,0 +1,20 @@
+# Tracing settings for the deployed container, baked into the image.
+#
+# Config.toml is not copied into the image (it holds the Anthropic key), and the
+# settings below cannot travel as `BAL_CONFIG_VAR_*` anyway: `ballerina.observe` is
+# runtime config rather than a configurable, and `tracesEndpoint` belongs to the
+# `ballerina/otel` module rather than to this package. Nothing here is secret.
+#
+# The endpoint is the collector running beside the agent in the same container --
+# see `start.sh`. Ballerina sends unsigned OTLP to loopback; the collector signs.
+
+[ballerina.observe]
+tracingEnabled = true
+tracingProvider = "otel"
+
+[ballerina.otel]
+tracesEndpoint = "http://127.0.0.1:4317"
+tracesProtocol = "grpc"
+
+[ballerina.otel.tracesResourceAttributes]
+"service.name" = "ballerina-agent"

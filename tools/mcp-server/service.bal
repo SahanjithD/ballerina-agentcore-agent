@@ -1,5 +1,9 @@
 import ballerina/log;
 import ballerina/mcp;
+
+// Side-effect import only: registers the `otel` tracing provider selected in
+// Config.toml. Without it the package is never resolved and tracing silently no-ops.
+import ballerina/otel as _;
 import ballerina/time;
 
 // AgentCore Runtime's MCP protocol contract fixes both the port and the path: the

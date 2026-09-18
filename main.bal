@@ -10,3 +10,4 @@ import ballerina/otel as _;
 public function main() {
     log:printInfo("ballerina agent starting", port = port);
 }
+

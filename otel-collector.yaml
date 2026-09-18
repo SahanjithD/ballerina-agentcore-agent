@@ -1,0 +1,46 @@
+# Receives unsigned OTLP from the agent on loopback, signs it with the runtime's IAM
+# credentials, and forwards it to CloudWatch.
+#
+# This file exists for one reason: the X-Ray OTLP endpoint accepts SigV4 and nothing
+# else (bearer tokens are offered for the logs and metrics endpoints, not this one),
+# and `ballerina/otel` has no signing support at all. So the signing happens beside
+# the agent instead of inside it.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        # Loopback only. Nothing outside the container may post spans here.
+        endpoint: 127.0.0.1:4317
+
+extensions:
+  sigv4auth:
+    region: us-east-1
+    service: xray
+
+exporters:
+  otlp_http:
+    # `traces_endpoint` rather than `endpoint`: the full path is required, and this
+    # endpoint speaks HTTP only -- gRPC is not accepted on the CloudWatch side.
+    traces_endpoint: https://xray.us-east-1.amazonaws.com/v1/traces
+    auth:
+      authenticator: sigv4auth
+    compression: gzip
+
+processors:
+  # AgentCore health-checks `/ping` every two seconds, forever. Each probe would
+  # otherwise become an ingested, billable span and bury everything worth reading.
+  # Safe to drop: these are roots with no children, so nothing is orphaned.
+  filter/drop_health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.url"] == "/ping"'
+
+service:
+  extensions: [sigv4auth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [filter/drop_health]
+      exporters: [otlp_http]

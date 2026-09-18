@@ -16,12 +16,6 @@ configurable string runtimeArn = ?;
 // id per turn is what makes an agent forget you between messages.
 configurable string sessionId = "";
 
-// Bedrock Guardrails, applied client-side around each turn. Leave `guardrailId` empty
-// to chat unguarded. See `guardrail.bal` for why this is an explicit call rather than
-// something the model provider or AgentCore does for us.
-configurable string guardrailId = "";
-configurable string guardrailVersion = "DRAFT";
-
 const string SERVICE = "bedrock-agentcore";
 
 public function main() returns error? {
@@ -39,12 +33,6 @@ public function main() returns error? {
 
     http:Client agent = check new (string `https://${host}`);
 
-    string guardHost = string `bedrock-runtime.${region}.amazonaws.com`;
-    http:Client? guard = guardrailId == "" ? () : check new (string `https://${guardHost}`);
-    if guard is () {
-        io:println("guardrail disabled (no guardrailId configured)");
-    }
-
     io:println(string `runtime ${runtimeArn}`);
     io:println(string `session ${session}`);
     io:println("Type your message. Blank line or \"exit\" to quit.\n");
@@ -53,23 +41,6 @@ public function main() returns error? {
         string prompt = io:readln("you > ").trim();
         if prompt == "" || prompt == "exit" || prompt == "quit" {
             break;
-        }
-
-        if guard is http:Client {
-            GuardrailVerdict|error verdict = applyGuardrail(guard, credentials, guardHost,
-                    region, guardrailId, guardrailVersion, prompt, "INPUT");
-            // Fail closed: if the check itself breaks we drop the turn rather than send
-            // text no guardrail has seen. A guardrail that fails open is not a guardrail.
-            if verdict is error {
-                io:println(string `guard> check failed, message not sent: ${verdict.message()}
-`);
-                continue;
-            }
-            if verdict.intervened {
-                io:println(string `guard> ${verdict.text}
-`);
-                continue;
-            }
         }
 
         byte[] payload = {"prompt": prompt}.toJsonString().toBytes();
@@ -112,21 +83,7 @@ public function main() returns error? {
 `);
             continue;
         }
-        string reply = check render(response);
-        if guard is http:Client {
-            // Tool results reach the model through the Gateway and the agent then
-            // repeats them, so the reply is the last place to catch content that the
-            // Gateway's own policy engine let through.
-            GuardrailVerdict|error verdict = applyGuardrail(guard, credentials, guardHost,
-                    region, guardrailId, guardrailVersion, reply, "OUTPUT");
-            if verdict is error {
-                io:println(string `guard> check failed, reply withheld: ${verdict.message()}
-`);
-                continue;
-            }
-            reply = verdict.text;
-        }
-        io:println(string `agent> ${reply}
+        io:println(string `agent> ${check render(response)}
 `);
     }
 
