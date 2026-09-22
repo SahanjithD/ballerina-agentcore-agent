@@ -17,4 +17,19 @@ tracesEndpoint = "http://127.0.0.1:4317"
 tracesProtocol = "grpc"
 
 [ballerina.otel.tracesResourceAttributes]
+# Only `service.name`, and only as a fallback. Everything that identifies this agent
+# to CloudWatch -- service.name, cloud.resource_id, deployment.environment.name,
+# aws.log.group.names, cloud.region -- is set by the collector's
+# `resource/agent_identity` processor from the OTEL_RESOURCE_ATTRIBUTES that AgentCore
+# injects, and it upserts over whatever is here. Duplicating those values in this file
+# would just create two sources of truth that drift. This name is what spans carry when
+# that processor is stripped, i.e. when running outside AgentCore.
 "service.name" = "ballerina-agent"
+
+
+# JSON rather than the default logfmt so CloudWatch parses each log line into
+# queryable fields. This matters more than it looks: when tracing is enabled the
+# log module merges `observe:getSpanContext()` into every record, so each line
+# already carries the trace and span id -- logfmt just leaves them unparsed.
+[ballerina.log]
+format = "json"

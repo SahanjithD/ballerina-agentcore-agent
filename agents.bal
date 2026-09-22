@@ -1,5 +1,6 @@
 import ballerina/ai;
 import ballerina/http;
+import ballerina/time;
 import ballerinax/ai.anthropic;
 
 configurable string anthropicApiKey = ?;
@@ -27,6 +28,31 @@ isolated function sum(int a, int b) returns int => a + b;
 @ai:AgentTool
 isolated function multiply(int a, int b) returns int => a * b;
 
+# Identity of the process that ran a tool call.
+#
+# + servedBy - Which process handled the call
+# + language - Language and distribution it is built on
+# + utcTime - Time the call was handled, in UTC
+type AgentIdentity record {|
+    string servedBy;
+    string language;
+    string utcTime;
+|};
+
+# Report which process actually ran this tool. A local `@ai:AgentTool` runs inside the
+# agent itself; `ballerina-mcp-server___whoAmI` runs in a separate container behind the
+# Gateway. Asking both in one conversation is the cheapest way to see the difference --
+# in the trace the local call is a bare `execute_tool` span with no HTTP beneath it,
+# while the Gateway one carries a whole client stack and the Gateway's own spans.
+#
+# + return - Identity of the agent process
+@ai:AgentTool
+isolated function whereAmIRunning() returns AgentIdentity => {
+    servedBy: "ballerina-agent, in-process @ai:AgentTool",
+    language: "Ballerina 2201.13.5 (Swan Lake Update 13)",
+    utcTime: time:utcToString(time:utcNow())
+};
+
 final ai:ModelProvider claudeModel = check new anthropic:ModelProvider(anthropicApiKey, modelType);
 
 // Ballerina's HTTP client fetches a token from `tokenUrl` and renews it before expiry, so
@@ -43,9 +69,14 @@ final http:ClientAuthConfig? gatewayAuth = oauthAuth ?: tokenAuth;
 // Connects at startup: `ai:McpToolKit` calls `listTools` in its `init`, so the tool list is
 // fixed once the agent is built. An unreachable Gateway therefore stops the container from
 // starting rather than silently serving an agent that is missing half its tools.
-// See DEPLOY.md if you would rather degrade to local tools instead.
-final ai:McpToolKit? gateway = mcpServerUrl == "" ? ()
-    : check new ai:McpToolKit(mcpServerUrl, auth = gatewayAuth);
+//
+// Not optional, deliberately. The Ballerina visual editor renders the agent's tools only
+// when `tools` below is a plain array literal; a conditional expression leaves the node
+// blank. Making the toolkit unconditional is what keeps the literal, at the cost of the
+// old `mcpServerUrl = ""` path that ran with local tools only. That path existed for local
+// testing, and losing it is consistent with the fail-fast behaviour described above --
+// there is no longer a way to boot without a reachable Gateway.
+final ai:McpToolKit gateway = check new (mcpServerUrl, auth = gatewayAuth);
 
 final ai:Agent assistantAgent = check new (
     systemPrompt = {
@@ -53,8 +84,8 @@ final ai:Agent assistantAgent = check new (
         instructions: "You are a helpful assistant. Use the provided tools when they help answer the question."
     },
     model = claudeModel,
-    // Gateway tools join the local ones only if the connection succeeded. Parens are
-    // required: `is T ?` would otherwise parse as the optional type `T?`.
-    // The cast is safe under the guard: Ballerina does not narrow module-level variables.
-    tools = (gateway is ai:McpToolKit) ? [sum, multiply, <ai:McpToolKit>gateway] : [sum, multiply]
+    // A plain literal, so the visual editor can resolve and display every tool. Local
+    // `@ai:AgentTool` functions first, then the Gateway toolkit, which expands to the
+    // MCP and REST targets it discovered at startup.
+    tools = [sum, multiply, whereAmIRunning, gateway]
 );

@@ -37,10 +37,116 @@ processors:
       span:
         - 'attributes["http.url"] == "/ping"'
 
+  # Ballerina's span API is `addTagToSpan(string key, string value)` -- string-only
+  # (ballerina/observe 1.7.1, natives.bal:70). So `ai.observe` emits token counts as
+  # `"1986"` rather than 1986, and CloudWatch's GenAI Observability panels, which
+  # derive their metrics from span attributes, cannot sum a string: "Total tokens"
+  # reads 0 while sessions and traces count correctly. Coercing here is the only
+  # place we control -- the alternative is a fix upstream in ballerina/observe.
+  #
+  # `attributes` rather than the more obvious `transform`/OTTL: ADOT Collector
+  # v0.50.0 does not bundle the transform processor at all. A `convert` action on a
+  # key that is absent is a no-op, so spans without token counts pass through
+  # untouched and no `where` guard is needed.
+  attributes/genai_token_types:
+    actions:
+      - key: gen_ai.usage.input_tokens
+        action: convert
+        converted_type: int
+      - key: gen_ai.usage.output_tokens
+        action: convert
+        converted_type: int
+
+  # Identity, taken verbatim from the OTEL_RESOURCE_ATTRIBUTES that AgentCore injects
+  # into the container and parsed by `start.sh`. These are what let CloudWatch attribute
+  # our spans to the agent: `service.name` matches the dashboard row exactly
+  # (`ballerina_agent.DEFAULT`), and `deployment.environment.name` is what decides
+  # `aws.local.environment` -- without it spans are classified `generic:default` /
+  # `PlatformType: Generic` and the agent's token counts never roll up.
+  #
+  # `upsert` so these win over the values Ballerina sets from Config.toml. If any of
+  # them is empty the collector refuses to start, so `start.sh` removes this processor
+  # from the pipeline rather than let that happen silently.
+  resource/agent_identity:
+    attributes:
+      - key: service.name
+        value: ${env:AGENT_SERVICE_NAME}
+        action: upsert
+      - key: cloud.resource_id
+        value: ${env:AGENT_CLOUD_RESOURCE_ID}
+        action: upsert
+      - key: deployment.environment.name
+        value: ${env:AGENT_DEPLOYMENT_ENV}
+        action: upsert
+      - key: aws.log.group.names
+        value: ${env:AGENT_LOG_GROUP}
+        action: upsert
+      - key: aws.log.stream.names
+        value: ${env:AGENT_LOG_STREAM}
+        action: upsert
+      - key: cloud.platform
+        value: ${env:AGENT_CLOUD_PLATFORM}
+        action: upsert
+      - key: cloud.provider
+        value: ${env:AGENT_CLOUD_PROVIDER}
+        action: upsert
+      - key: cloud.region
+        value: ${env:AGENT_CLOUD_REGION}
+        action: upsert
+
+  # Last resort on classification. Every RESOURCE attribute AWS sets is now matched
+  # byte for byte and spans are still stamped `PlatformType: Generic`, so if anything
+  # in the payload drives that, it has to be span-level. The Gateway's own spans --
+  # which ARE classified `AWS::BedrockAgentCore` -- carry these three and ours do not.
+  # `AWS::BedrockAgentCore::Runtime` is the runtime-side value, confirmed by the
+  # console's own "Capability type" column on the AgentCore.Runtime.Invoke row.
+  #
+  # This is a truthful claim, not a spoof: these spans really are emitted by that
+  # runtime. If it does not move PlatformType, the classification is decided by the
+  # ingestion path rather than the payload and no config can reach it.
+  attributes/agentcore_origin:
+    actions:
+      - key: aws.xray.origin
+        value: AWS::BedrockAgentCore::Runtime
+        action: upsert
+      - key: aws.resource.type
+        value: AWS::BedrockAgentCore::Runtime
+        action: upsert
+      - key: aws.resource.arn
+        value: ${env:AGENT_CLOUD_RESOURCE_ID}
+        action: upsert
+
+  # `gen_ai.usage.total_tokens` is the attribute AWS's own Logs Insights examples query
+  # for token totals, and Ballerina emits only the two halves separately. Summing needs
+  # OTTL, which is why this image is contrib rather than ADOT.
+  #
+  # Must run AFTER attributes/genai_token_types: Ballerina's span API is string-only, so
+  # the halves arrive as "1637"/"180" and Int() is applied there first.
+  transform/genai_total_tokens:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(span.attributes["gen_ai.usage.total_tokens"], Int(span.attributes["gen_ai.usage.input_tokens"]) + Int(span.attributes["gen_ai.usage.output_tokens"])) where span.attributes["gen_ai.usage.input_tokens"] != nil and span.attributes["gen_ai.usage.output_tokens"] != nil
+
+  # `ai.observe` records the AgentCore session as `gen_ai.conversation.id`, but AWS keys
+  # session correlation on `session.id` -- it is on the platform's own InvokeAgentRuntime
+  # span, and the devguide tells third-party agents to push it through OTel baggage. We
+  # already carry the value, so copy it rather than plumb baggage through Ballerina.
+  # `from_attribute` is a no-op on spans without the source, so only invoke_agent spans
+  # gain it.
+  attributes/session_id:
+    actions:
+      - key: session.id
+        from_attribute: gen_ai.conversation.id
+        action: upsert
+
 service:
   extensions: [sigv4auth]
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [filter/drop_health]
+      # Kept on one line on purpose: `start.sh` removes the env-dependent processors with
+      # `sed s|, <name>||`, which only matches when ", " precedes the name on the same line.
+      processors: [filter/drop_health, attributes/genai_token_types, transform/genai_total_tokens, resource/agent_identity, attributes/agentcore_origin, attributes/session_id]
       exporters: [otlp_http]

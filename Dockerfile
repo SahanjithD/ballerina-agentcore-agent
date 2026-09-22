@@ -13,11 +13,17 @@ FROM eclipse-temurin:21-jre-jammy
 WORKDIR /app
 COPY --from=build /home/ballerina/agent/target/bin/ballerina_agent.jar /app/agent.jar
 
-# AWS Distro for OpenTelemetry Collector, copied in as a single static binary.
-# AgentCore Runtime gives you one container rather than a pod, so this cannot be a
-# sidecar -- it runs as a second process. See `start.sh`.
-COPY --from=public.ecr.aws/aws-observability/aws-otel-collector:latest \
-     /awscollector /usr/local/bin/awscollector
+# OpenTelemetry Collector (contrib), copied in as a single static binary. AgentCore
+# Runtime gives you one container rather than a pod, so this cannot be a sidecar -- it
+# runs as a second process. See `start.sh`.
+#
+# Contrib rather than AWS's own ADOT distro: ADOT v0.50.0 does not ship the `transform`
+# processor (verified -- it is absent from the error message listing valid processors),
+# and OTTL is the only way to compute `gen_ai.usage.total_tokens` from the separate
+# input/output counts Ballerina emits. Contrib ships both `transform` and the
+# `sigv4auth` extension the X-Ray OTLP endpoint requires, and publishes arm64.
+COPY --from=otel/opentelemetry-collector-contrib:latest \
+     /otelcol-contrib /usr/local/bin/otelcol
 COPY otel-collector.yaml /etc/otel/config.yaml
 COPY start.sh /app/start.sh
 
@@ -27,7 +33,7 @@ COPY start.sh /app/start.sh
 # `BAL_CONFIG_VAR_*`. The API key still arrives as an environment variable, and the
 # two sources merge rather than conflict.
 COPY observability.toml /app/Config.toml
-RUN chmod +x /app/start.sh /usr/local/bin/awscollector
+RUN chmod +x /app/start.sh /usr/local/bin/otelcol
 
 # The Ballerina http:Listener binds 0.0.0.0 by default, which the contract requires.
 EXPOSE 8080
