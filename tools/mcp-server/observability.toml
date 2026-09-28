@@ -1,0 +1,28 @@
+# Tracing settings for the MCP server container, baked into the image as Config.toml.
+#
+# Unlike the agent's Config.toml this one is committed: the tools are pure functions and
+# this runtime is handed no secrets at all.
+#
+# The structure has to match `ballerina/otel` exactly. Ballerina validates Config.toml
+# strictly and treats an unrecognised key as fatal, not as a warning -- `[ballerinai.otel]`
+# instead of `[ballerina.otel]` took the container into a crash loop, and because the
+# MCP contract has no health endpoint of its own the only symptom at the caller was a 408.
+
+[ballerina.observe]
+tracingEnabled = true
+tracingProvider = "otel"
+
+[ballerina.otel]
+tracesEndpoint = "http://127.0.0.1:4317"
+tracesProtocol = "grpc"
+
+[ballerina.otel.tracesResourceAttributes]
+# Fallback only. The collector's `resource/agent_identity` processor upserts the real
+# identity from the OTEL_RESOURCE_ATTRIBUTES AgentCore injects; this is what spans carry
+# when that processor is stripped, i.e. when running outside AgentCore.
+"service.name" = "ballerina-mcp-server"
+
+# JSON so CloudWatch parses each line into queryable fields. With tracing on, the log
+# module merges the span context into every record, so each line carries traceId/spanId.
+[ballerina.log]
+format = "json"

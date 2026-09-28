@@ -28,10 +28,10 @@ COPY otel-collector.yaml /etc/otel/config.yaml
 COPY start.sh /app/start.sh
 
 # Ballerina reads `Config.toml` from the working directory. The repo's own
-# Config.toml holds the Anthropic key and is deliberately not copied; this one
-# carries only the tracing settings, which are not secret and cannot be passed as
-# `BAL_CONFIG_VAR_*`. The API key still arrives as an environment variable, and the
-# two sources merge rather than conflict.
+# Config.toml is for local runs and is deliberately not copied; this one carries only
+# the tracing settings, which are not secret and cannot be passed as
+# `BAL_CONFIG_VAR_*`. The Gateway client credentials arrive as environment variables,
+# and the two sources merge rather than conflict.
 COPY observability.toml /app/Config.toml
 RUN chmod +x /app/start.sh /usr/local/bin/otelcol
 

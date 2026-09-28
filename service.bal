@@ -42,6 +42,7 @@ service / on new http:Listener(port) {
                 body: <FailureResponse>{message: response.message(), status: "error"}
             };
         }
+
         return <http:Ok>{body: <InvocationResponse>{response, status: "success"}};
     }
 }

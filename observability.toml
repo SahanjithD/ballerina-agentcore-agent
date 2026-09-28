@@ -1,6 +1,6 @@
 # Tracing settings for the deployed container, baked into the image.
 #
-# Config.toml is not copied into the image (it holds the Anthropic key), and the
+# Config.toml is not copied into the image (it is for local runs), and the
 # settings below cannot travel as `BAL_CONFIG_VAR_*` anyway: `ballerina.observe` is
 # runtime config rather than a configurable, and `tracesEndpoint` belongs to the
 # `ballerina/otel` module rather than to this package. Nothing here is secret.

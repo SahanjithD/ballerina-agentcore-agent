@@ -12,3 +12,6 @@ Config.toml
 
 # Python bytecode from deploy/chat.py.
 __pycache__/
+
+# macOS folder metadata.
+.DS_Store

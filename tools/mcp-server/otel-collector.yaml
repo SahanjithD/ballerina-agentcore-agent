@@ -1,0 +1,87 @@
+# Receives unsigned OTLP from the MCP server on loopback, signs it with the runtime's
+# IAM credentials, and forwards it to CloudWatch.
+#
+# Same reason as the agent's copy: the X-Ray OTLP endpoint accepts SigV4 and nothing
+# else, and `ballerina/otel` cannot sign. Trimmed of the agent's GenAI processors --
+# a tool server records no prompts and no token usage.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        # Loopback only. Nothing outside the container may post spans here.
+        endpoint: 127.0.0.1:4317
+
+extensions:
+  sigv4auth:
+    region: us-east-1
+    service: xray
+
+exporters:
+  otlp_http:
+    traces_endpoint: https://xray.us-east-1.amazonaws.com/v1/traces
+    auth:
+      authenticator: sigv4auth
+    compression: gzip
+
+processors:
+  # AgentCore health-checks this container too. The MCP listener serves only /mcp, so
+  # each probe also logs "no matching service found for path: /ping" -- dropping the
+  # spans keeps the trace view readable even though the log noise remains.
+  filter/drop_health:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["http.url"] == "/ping"'
+
+  # Identity, parsed by start.sh from the OTEL_RESOURCE_ATTRIBUTES AgentCore injects.
+  # `service.name` is what makes these spans show up as `ballerina_mcp_server.DEFAULT`
+  # rather than an unattributed service.
+  resource/agent_identity:
+    attributes:
+      - key: service.name
+        value: ${env:AGENT_SERVICE_NAME}
+        action: upsert
+      - key: cloud.resource_id
+        value: ${env:AGENT_CLOUD_RESOURCE_ID}
+        action: upsert
+      - key: deployment.environment.name
+        value: ${env:AGENT_DEPLOYMENT_ENV}
+        action: upsert
+      - key: aws.log.group.names
+        value: ${env:AGENT_LOG_GROUP}
+        action: upsert
+      - key: aws.log.stream.names
+        value: ${env:AGENT_LOG_STREAM}
+        action: upsert
+      - key: cloud.platform
+        value: ${env:AGENT_CLOUD_PLATFORM}
+        action: upsert
+      - key: cloud.provider
+        value: ${env:AGENT_CLOUD_PROVIDER}
+        action: upsert
+      - key: cloud.region
+        value: ${env:AGENT_CLOUD_REGION}
+        action: upsert
+
+  attributes/agentcore_origin:
+    actions:
+      - key: aws.xray.origin
+        value: AWS::BedrockAgentCore::Runtime
+        action: upsert
+      - key: aws.resource.type
+        value: AWS::BedrockAgentCore::Runtime
+        action: upsert
+      - key: aws.resource.arn
+        value: ${env:AGENT_CLOUD_RESOURCE_ID}
+        action: upsert
+
+service:
+  extensions: [sigv4auth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      # One line on purpose: start.sh strips the env-dependent processors with
+      # `sed s|, <name>||`, which only matches when ", " precedes the name.
+      processors: [filter/drop_health, resource/agent_identity, attributes/agentcore_origin]
+      exporters: [otlp_http]

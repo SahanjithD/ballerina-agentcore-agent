@@ -1,0 +1,72 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+html,body,.stage{height:810px}
+.cols{position:absolute;left:48px;right:48px;top:140px;display:grid;grid-template-columns:repeat(4,1fr);gap:24px}
+.col{display:flex;flex-direction:column;gap:14px}
+.q{background:var(--card);border:1px solid var(--line);border-radius:6px;padding:22px 22px 20px;height:150px;display:flex;flex-direction:column;justify-content:space-between}
+.q .eyebrow{color:var(--teal)}
+.q h2{font-size:32px;font-weight:700;letter-spacing:-.4px;line-height:1.1}
+.asker{font-size:15px;color:var(--muted);padding:0 4px}
+.asker b{color:var(--ink);font-weight:600}
+.svc{background:var(--teal);color:#fff;border-radius:6px;padding:16px 20px;height:96px;display:flex;flex-direction:column;justify-content:center;gap:4px}
+.svc .n{font-size:20px;font-weight:700}
+.svc .d{font-size:14.5px;opacity:.9}
+.ev{background:var(--teal-soft);border-radius:6px;padding:18px 20px;height:186px}
+.ev .eyebrow{color:var(--teal);margin-bottom:10px}
+.ev ul{list-style:none;display:flex;flex-direction:column;gap:9px}
+.ev li{font-size:16px;line-height:1.35;padding-left:16px;position:relative}
+.ev li:before{content:"";position:absolute;left:0;top:9px;width:7px;height:7px;border-radius:50%;background:var(--teal)}
+.base{position:absolute;left:48px;right:48px;top:690px;height:84px;background:var(--orange);border-radius:6px;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:0 28px}
+.base .n{font-size:21px;font-weight:700}
+.base .d{font-size:16px;opacity:.95}
+.tick{position:absolute;top:640px;width:2px;height:50px;background:var(--orange)}
+</style></head>
+<body><div class="stage">
+  <div class="title">Four questions every production agent must answer</div>
+  <div class="sub">…and the Amazon Bedrock AgentCore service that answers each one for a WSO2 agent</div>
+  <div class="legend"><span><i style="background:var(--teal)"></i>Amazon Bedrock AgentCore</span><span><i style="background:var(--orange)"></i>WSO2 Integration Platform</span></div>
+
+  <div class="cols">
+    <div class="col">
+      <div class="q"><span class="eyebrow">Identity</span><h2>Who is it?</h2></div>
+      <div class="asker">Asked by <b>Security</b></div>
+      <div class="svc"><span class="n">AgentCore Identity</span><span class="d">Gateway sign-in and key vault</span></div>
+      <div class="ev"><div class="eyebrow">Evidence</div><ul>
+        <li>Short-lived OAuth token per agent</li>
+        <li>Model keys held in the vault, never in the agent</li>
+        <li>Each tool reached with its own AWS role</li></ul></div>
+    </div>
+    <div class="col">
+      <div class="q"><span class="eyebrow">Governance</span><h2>What may it do?</h2></div>
+      <div class="asker">Asked by <b>Security &amp; compliance</b></div>
+      <div class="svc"><span class="n">AgentCore Policy</span><span class="d">Cedar rules with Bedrock Guardrails</span></div>
+      <div class="ev"><div class="eyebrow">Evidence</div><ul>
+        <li>Every tool and model call checked</li>
+        <li>Default-deny under enforcement</li>
+        <li>Agent only sees the tools it may use</li></ul></div>
+    </div>
+    <div class="col">
+      <div class="q"><span class="eyebrow">Observability</span><h2>What did it do?</h2></div>
+      <div class="asker">Asked by <b>Operations</b></div>
+      <div class="svc"><span class="n">GenAI Observability</span><span class="d">In Amazon CloudWatch, from OpenTelemetry</span></div>
+      <div class="ev"><div class="eyebrow">Evidence</div><ul>
+        <li>One trace per conversation</li>
+        <li>Model turns, token cost, tool inputs and outputs</li>
+        <li>Every policy decision, allowed or denied</li></ul></div>
+    </div>
+    <div class="col">
+      <div class="q"><span class="eyebrow">Evaluation</span><h2>Was it any good?</h2></div>
+      <div class="asker">Asked by <b>Business owners</b></div>
+      <div class="svc"><span class="n">AgentCore Evaluations</span><span class="d">Model-based judges on live traffic</span></div>
+      <div class="ev"><div class="eyebrow">Evidence</div><ul>
+        <li>Correctness, goal success, helpfulness</li>
+        <li>Instruction following, relevance</li>
+        <li>Written reasoning with every score</li></ul></div>
+    </div>
+  </div>
+
+  <div class="tick" style="left:226px"></div><div class="tick" style="left:608px"></div>
+  <div class="tick" style="left:990px"></div><div class="tick" style="left:1372px"></div>
+  <div class="base"><span class="n">WSO2 agent and MCP tool servers on AgentCore Runtime</span><span class="d">Take part in all four as deployed, without per-agent plumbing</span></div>
+</div></body></html>

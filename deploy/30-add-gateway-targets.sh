@@ -83,7 +83,7 @@ python3 > "${MCP_REQUEST}" <<'PY'
 import json, os
 print(json.dumps({
     "gatewayIdentifier": os.environ["GATEWAY_ID"],
-    "name": "ballerina-mcp-tools",
+    "name": "ballerinaMcpServer",
     "description": "Ballerina MCP server on AgentCore Runtime",
     "targetConfiguration": {
         "mcp": {
@@ -126,7 +126,7 @@ with open(os.environ["SPEC"]) as f:
     spec = f.read()
 print(json.dumps({
     "gatewayIdentifier": os.environ["GATEWAY_ID"],
-    "name": "ballerina-rest-api",
+    "name": "ballerinaRestApi",
     "description": "Ballerina REST API on Lambda, behind a Function URL",
     "targetConfiguration": {"mcp": {"openApiSchema": {"inlinePayload": spec}}},
     "credentialProviderConfigurations": [{

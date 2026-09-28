@@ -1,0 +1,16 @@
+:root{
+  --ink:#172033; --muted:#5B6474; --line:#C9D1DC; --bg:#F2F4F7; --card:#FFFFFF;
+  --teal:#0E7C7B; --teal-soft:#E2F1F0; --orange:#E8621C; --orange-soft:#FCEADF;
+  --deny:#B42318; --deny-soft:#FBE7E5;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:1600px;height:900px;background:var(--bg);color:var(--ink);
+  font-family:"Avenir Next","Helvetica Neue",Arial,sans-serif;-webkit-font-smoothing:antialiased}
+.stage{position:relative;width:1600px;height:900px;overflow:hidden}
+.title{position:absolute;left:48px;top:36px;font-size:30px;font-weight:700;letter-spacing:-.2px}
+.sub{position:absolute;left:48px;top:78px;font-size:17px;color:var(--muted)}
+.box{position:absolute;border-radius:6px}
+.eyebrow{font-size:12.5px;font-weight:700;letter-spacing:1.6px;text-transform:uppercase}
+.legend{position:absolute;right:48px;top:44px;display:flex;gap:22px;font-size:14px;color:var(--muted);align-items:center}
+.legend i{display:inline-block;width:14px;height:14px;border-radius:3px;margin-right:8px;vertical-align:-2px}
+svg.wires{position:absolute;inset:0;width:1600px;height:900px;pointer-events:none}

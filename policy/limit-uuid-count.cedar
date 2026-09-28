@@ -12,7 +12,7 @@
 // tools/list against the gateway before relying on it.
 forbid(
     principal,
-    action == AgentCore::Action::"ballerina-rest-api___generateUuids",
+    action == AgentCore::Action::"ballerinaRestApi___generateUuids",
     resource == AgentCore::Gateway::"GATEWAY_ARN_PLACEHOLDER"
 )
 when {

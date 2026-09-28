@@ -129,6 +129,54 @@ processors:
         statements:
           - set(span.attributes["gen_ai.usage.total_tokens"], Int(span.attributes["gen_ai.usage.input_tokens"]) + Int(span.attributes["gen_ai.usage.output_tokens"])) where span.attributes["gen_ai.usage.input_tokens"] != nil and span.attributes["gen_ai.usage.output_tokens"] != nil
 
+  # AgentCore Evaluations decides whether it can read a span from the span's
+  # `scope.name`, and under "generic framework support" it accepts only scopes beginning
+  # `opentelemetry.instrumentation.` or `openinference.instrumentation.`. `ballerina/otel`
+  # names its scope `otel`, which matches neither, so every span we emit would be skipped
+  # -- not for lack of content, but for lack of a prefix.
+  #
+  # Renaming it here is the same claim the docs ask instrumentation to make ("configure
+  # your instrumentation to emit the scope name"), one layer later. It is truthful: these
+  # spans really are produced by Ballerina's OpenTelemetry instrumentation.
+  #
+  # Guarded on the exact current value so that if `ballerina/otel` ever adopts a
+  # conventional scope name itself, this becomes a no-op rather than a silent override.
+  transform/scope_name:
+    error_mode: ignore
+    trace_statements:
+      - context: scope
+        statements:
+          - set(scope.name, "opentelemetry.instrumentation.ballerina") where scope.name == "otel"
+
+  # AgentCore Evaluations reads conversation content from a fixed set of attribute names,
+  # and which names it tries depends on the span's type. On an `invoke_agent` span it
+  # looks for `gen_ai.task.input` / `gen_ai.task.output`; `gen_ai.input.messages` and
+  # `gen_ai.output.messages` are only consulted on inference spans. `ai.observe` puts the
+  # prompt and the answer on the invoke_agent span under the inference-span names, so the
+  # extractor finds nothing and hands the judge two empty strings -- which then score 1.0,
+  # because an empty answer trivially matches an empty question.
+  #
+  # The same mismatch applies to tool calls: `ai.observe` emits `gen_ai.tool.arguments`
+  # and `gen_ai.tool.output`, the contract expects `gen_ai.tool.call.arguments` and
+  # `gen_ai.tool.call.result`.
+  #
+  # Copies rather than moves: the originals stay exactly where they are, so nothing that
+  # already reads them changes. `agentcore.invocation.*` is set here too -- it is the
+  # documented any-scope fallback, and it has to sit on the invoke_agent span, which is
+  # the one carrying `gen_ai.conversation.id` and therefore the one sessions are built
+  # from.
+  transform/genai_eval_aliases:
+    error_mode: ignore
+    trace_statements:
+      - context: span
+        statements:
+          - set(span.attributes["gen_ai.task.input"], span.attributes["gen_ai.input.messages"]) where span.attributes["gen_ai.operation.name"] == "invoke_agent" and span.attributes["gen_ai.input.messages"] != nil
+          - set(span.attributes["gen_ai.task.output"], span.attributes["gen_ai.output.messages"]) where span.attributes["gen_ai.operation.name"] == "invoke_agent" and span.attributes["gen_ai.output.messages"] != nil
+          - set(span.attributes["agentcore.invocation.user_prompt"], span.attributes["gen_ai.input.messages"]) where span.attributes["gen_ai.operation.name"] == "invoke_agent" and span.attributes["gen_ai.input.messages"] != nil
+          - set(span.attributes["agentcore.invocation.agent_response"], span.attributes["gen_ai.output.messages"]) where span.attributes["gen_ai.operation.name"] == "invoke_agent" and span.attributes["gen_ai.output.messages"] != nil
+          - set(span.attributes["gen_ai.tool.call.arguments"], span.attributes["gen_ai.tool.arguments"]) where span.attributes["gen_ai.operation.name"] == "execute_tool" and span.attributes["gen_ai.tool.arguments"] != nil
+          - set(span.attributes["gen_ai.tool.call.result"], span.attributes["gen_ai.tool.output"]) where span.attributes["gen_ai.operation.name"] == "execute_tool" and span.attributes["gen_ai.tool.output"] != nil
+
   # `ai.observe` records the AgentCore session as `gen_ai.conversation.id`, but AWS keys
   # session correlation on `session.id` -- it is on the platform's own InvokeAgentRuntime
   # span, and the devguide tells third-party agents to push it through OTel baggage. We
@@ -148,5 +196,5 @@ service:
       receivers: [otlp]
       # Kept on one line on purpose: `start.sh` removes the env-dependent processors with
       # `sed s|, <name>||`, which only matches when ", " precedes the name on the same line.
-      processors: [filter/drop_health, attributes/genai_token_types, transform/genai_total_tokens, resource/agent_identity, attributes/agentcore_origin, attributes/session_id]
+      processors: [filter/drop_health, attributes/genai_token_types, transform/genai_total_tokens, transform/scope_name, transform/genai_eval_aliases, resource/agent_identity, attributes/agentcore_origin, attributes/session_id]
       exporters: [otlp_http]

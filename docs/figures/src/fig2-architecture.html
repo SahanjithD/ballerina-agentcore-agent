@@ -1,0 +1,100 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.chip{position:absolute;left:48px;width:200px;height:52px;background:var(--card);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;padding:0 18px;font-size:16px;font-weight:600}
+.lbl{position:absolute;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+.acct{position:absolute;left:300px;top:128px;width:1252px;height:738px;border:2px dashed #AEB8C6;border-radius:10px}
+.acct-l{position:absolute;left:320px;top:118px;background:var(--bg);padding:0 10px;font-size:13px;font-weight:700;letter-spacing:1.4px;color:var(--muted)}
+.rt{position:absolute;left:332px;top:176px;width:292px;height:352px;border:2px solid var(--teal);border-radius:8px;background:#fff}
+.rt .h,.gw .h{position:absolute;left:16px;top:12px;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--teal)}
+.agent{position:absolute;left:352px;top:222px;width:252px;height:170px;background:var(--orange);border-radius:6px;color:#fff;padding:18px}
+.agent .n{font-size:21px;font-weight:700}
+.agent .d{font-size:15px;line-height:1.4;margin-top:8px;opacity:.95}
+.col{position:absolute;left:352px;top:408px;width:252px;height:98px;background:var(--orange-soft);border:1px solid #F3B48E;border-radius:6px;padding:14px 16px}
+.col .n{font-size:16px;font-weight:700;color:#9A3A0A}
+.col .d{font-size:14px;color:#6B3A1E;margin-top:4px;line-height:1.35}
+.gw{position:absolute;left:688px;top:176px;width:336px;height:446px;background:var(--teal);border-radius:8px}
+.gw .h{color:#fff;opacity:.9}
+.gcard{position:absolute;left:708px;width:296px;background:#fff;border-radius:6px;padding:13px 16px}
+.gcard .n{font-size:16.5px;font-weight:700;color:var(--teal)}
+.gcard .d{font-size:14px;color:var(--ink);margin-top:3px;line-height:1.35}
+.tgt{position:absolute;left:1112px;width:414px;height:92px;border-radius:6px;padding:14px 18px}
+.tgt .n{font-size:17px;font-weight:700}
+.tgt .d{font-size:14px;margin-top:4px;line-height:1.35}
+.w2{background:var(--orange-soft);border:1px solid #F3B48E}
+.w2 .n{color:#9A3A0A} .w2 .d{color:#6B3A1E}
+.ext{background:#fff;border:1px solid var(--line)}
+.ext .d{color:var(--muted)}
+.vault{position:absolute;left:1112px;top:590px;width:414px;height:56px;border:2px solid var(--teal);border-radius:6px;background:var(--teal-soft);display:flex;align-items:center;padding:0 18px;gap:10px;font-size:15px;color:var(--teal);font-weight:700}
+.bot{position:absolute;top:706px;height:132px;border-radius:8px;padding:18px 22px}
+.cw{left:332px;width:560px;background:#fff;border:2px solid var(--teal)}
+.ev{left:966px;width:560px;background:var(--teal);color:#fff}
+.bot .n{font-size:20px;font-weight:700}
+.cw .n{color:var(--teal)}
+.bot .d{font-size:15px;margin-top:8px;line-height:1.45}
+.cw .d{color:var(--ink)}
+.wl{position:absolute;font-size:13.5px;color:var(--muted);font-weight:600;background:var(--bg);padding:0 4px}
+</style></head>
+<body><div class="stage">
+  <div class="title">A WSO2 agent and its tools on Amazon Bedrock AgentCore</div>
+  <div class="legend"><span><i style="background:var(--teal)"></i>Amazon Bedrock AgentCore</span><span><i style="background:var(--orange)"></i>WSO2 Integration Platform</span></div>
+
+  <div class="lbl" style="left:48px;top:140px">Requests from</div>
+  <div class="chip" style="top:176px">Applications &amp; APIs</div>
+  <div class="chip" style="top:240px">Chat channels</div>
+  <div class="chip" style="top:304px">Events</div>
+  <div class="chip" style="top:368px">Scheduled jobs</div>
+  <div class="chip" style="top:432px">Other agents</div>
+
+  <div class="acct"></div><div class="acct-l">YOUR AWS ACCOUNT</div>
+
+  <div class="rt"><span class="h">AgentCore Runtime</span></div>
+  <div class="agent"><div class="n">WSO2 agent</div><div class="d">Reasons with a model, chooses tools, acts on the answer. Holds a Gateway token, never a model key.</div></div>
+  <div class="col"><div class="n">OpenTelemetry Collector</div><div class="d">Same container. Sends the agent's traces to CloudWatch.</div></div>
+
+  <div class="gw"><span class="h">AgentCore Gateway</span></div>
+  <div class="gcard" style="top:222px"><div class="n">Identity check</div><div class="d">Agent's OAuth token verified on every call</div></div>
+  <div class="gcard" style="top:318px"><div class="n">Policy</div><div class="d">Cedar rules and Bedrock Guardrails, default-deny</div></div>
+  <div class="gcard" style="top:414px"><div class="n">Filtered tool menu</div><div class="d">Agent only sees tools it may call</div></div>
+  <div class="gcard" style="top:510px"><div class="n">Inference endpoint</div><div class="d">Model calls under the same rules as tools</div></div>
+
+  <div class="lbl" style="left:1112px;top:140px">Behind the Gateway</div>
+  <div class="tgt w2" style="top:176px"><div class="n">WSO2 MCP tool server</div><div class="d">Hosted on AgentCore Runtime</div></div>
+  <div class="tgt w2" style="top:280px"><div class="n">WSO2 REST API</div><div class="d">On AWS Lambda, described in OpenAPI, exposed as tools</div></div>
+  <div class="tgt ext" style="top:384px"><div class="n">Third-party MCP servers</div><div class="d">Governed by the same rules</div></div>
+  <div class="tgt ext" style="top:488px"><div class="n">Model provider</div><div class="d">OpenAI, Anthropic or models on Amazon Bedrock</div></div>
+  <div class="vault">Provider key held in the AgentCore Identity vault</div>
+
+  <div class="bot cw"><div class="n">Amazon CloudWatch · GenAI Observability</div><div class="d">One trace per conversation: model turns and token cost, tool calls with inputs and outputs, and every policy decision.</div></div>
+  <div class="bot ev"><div class="n">AgentCore Evaluations</div><div class="d">Scores live conversations from those traces: correctness, goal success, helpfulness, with the judge's reasoning.</div></div>
+
+  <svg class="wires" viewBox="0 0 1600 900">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#172033"/></marker>
+      <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0E7C7B"/></marker>
+    </defs>
+    <!-- requests into the agent -->
+    <path d="M248,202 H290 V300 H350" fill="none" stroke="#172033" stroke-width="2"/>
+    <path d="M248,266 H290" fill="none" stroke="#172033" stroke-width="2"/>
+    <path d="M248,330 H290" fill="none" stroke="#172033" stroke-width="2"/>
+    <path d="M248,394 H290 V300" fill="none" stroke="#172033" stroke-width="2"/>
+    <path d="M248,458 H290 V394" fill="none" stroke="#172033" stroke-width="2"/>
+    <path d="M290,300 H350" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <!-- agent to gateway -->
+    <path d="M606,300 H686" fill="none" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <!-- gateway to targets -->
+    <path d="M1026,222 H1110" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M1026,326 H1110" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M1026,430 H1110" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <path d="M1026,534 H1110" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <!-- vault feeds provider call -->
+    <!-- traces -->
+    <path d="M478,508 V704" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+    <path d="M760,624 V704" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+    <path d="M894,772 H964" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+  </svg>
+  <div class="wl" style="left:630px;top:272px">every call</div>
+  <div class="wl" style="left:486px;top:600px">agent traces</div>
+  <div class="wl" style="left:768px;top:652px">policy decisions</div>
+  <div class="wl" style="left:896px;top:744px">reads</div>
+</div></body></html>

@@ -1,0 +1,50 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.row{position:absolute;left:48px;right:48px;top:170px;display:grid;grid-template-columns:repeat(6,1fr);gap:40px}
+.step{background:var(--card);border:1px solid var(--line);border-radius:6px;height:300px;padding:22px 20px;display:flex;flex-direction:column;gap:12px}
+.num{width:36px;height:36px;border-radius:50%;background:var(--ink);color:#fff;font-weight:700;font-size:17px;display:flex;align-items:center;justify-content:center}
+.step .who{font-size:12.5px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+.step h3{font-size:22px;font-weight:700;line-height:1.15;letter-spacing:-.2px}
+.step p{font-size:15.5px;line-height:1.45;color:#2C3547}
+.aws{border:2px solid var(--teal)} .aws .num{background:var(--teal)} .aws .who{color:var(--teal)}
+.wso2{border:2px solid var(--orange)} .wso2 .num{background:var(--orange)} .wso2 .who{color:var(--orange)}
+.deny{position:absolute;left:584px;top:602px;width:430px;background:var(--deny-soft);border:2px solid var(--deny);border-radius:6px;padding:18px 20px}
+.deny .n{font-size:18px;font-weight:700;color:var(--deny)}
+.deny .d{font-size:15.5px;line-height:1.45;margin-top:6px;color:#4A1D18}
+.note{position:absolute;left:48px;right:48px;top:792px;font-size:16px;color:var(--muted);line-height:1.5;border-top:1px solid var(--line);padding-top:18px}
+.note b{color:var(--ink)}
+.wl{position:absolute;font-size:13.5px;color:var(--muted);font-weight:600;background:var(--bg);padding:0 4px}
+</style></head>
+<body><div class="stage">
+  <div class="title">One tool call, checked at every step</div>
+  <div class="sub">What happens between a WSO2 agent deciding to use a tool and the tool running</div>
+  <div class="legend"><span><i style="background:var(--teal)"></i>Amazon Bedrock AgentCore</span><span><i style="background:var(--orange)"></i>WSO2 Integration Platform</span></div>
+
+  <div class="row">
+    <div class="step wso2"><div class="num">1</div><div class="who">WSO2 agent</div><h3>Decides to use a tool</h3><p>Sends the call to the Gateway with its short-lived token. It can only pick from tools it was shown.</p></div>
+    <div class="step aws"><div class="num">2</div><div class="who">Identity</div><h3>Caller verified</h3><p>The token is checked on every call. An unknown or expired caller stops here.</p></div>
+    <div class="step aws"><div class="num">3</div><div class="who">Policy</div><h3>Decision made</h3><p>Cedar rules are evaluated against the call and its arguments, with Bedrock Guardrails screening the content.</p></div>
+    <div class="step wso2"><div class="num">4</div><div class="who">WSO2 tool service</div><h3>Tool runs</h3><p>The Gateway calls the service with its own AWS role. For model calls, the key comes from the vault.</p></div>
+    <div class="step aws"><div class="num">5</div><div class="who">Observability</div><h3>On the record</h3><p>The call, its result and the policy decision land in the conversation's trace.</p></div>
+    <div class="step aws"><div class="num">6</div><div class="who">Evaluations</div><h3>Scored later</h3><p>The finished conversation is judged from the same trace, with written reasoning.</p></div>
+  </div>
+
+  <div class="deny"><div class="n">Denied</div><div class="d">The call never reaches the tool. The agent gets a refusal, and the decision is recorded in the trace like any other.</div></div>
+
+  <svg class="wires" viewBox="0 0 1600 900">
+    <defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#172033"/></marker>
+    <marker id="r" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#B42318"/></marker></defs>
+    <path d="M269,320 H302" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M526,320 H559" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M783,320 H816" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M1041,320 H1074" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M1298,320 H1331" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M671,472 V600" fill="none" stroke="#B42318" stroke-width="2.5" marker-end="url(#r)"/>
+    <path d="M1016,660 H1186 V474" fill="none" stroke="#B42318" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#r)"/>
+  </svg>
+  <div class="wl" style="left:681px;top:522px;color:#B42318">not permitted</div>
+  <div class="wl" style="left:1060px;top:634px;color:#B42318">still recorded</div>
+
+  <div class="note">Steps 2, 3 and 5 happen in the Gateway, outside the agent, so they apply the same way to <b>every agent</b> on the Gateway, whatever framework it was built with.</div>
+</div></body></html>

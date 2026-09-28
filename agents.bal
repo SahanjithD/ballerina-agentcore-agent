@@ -1,10 +1,19 @@
 import ballerina/ai;
 import ballerina/http;
 import ballerina/time;
-import ballerinax/ai.anthropic;
+import ballerinax/ai.openai;
 
-configurable string anthropicApiKey = ?;
-configurable anthropic:ANTHROPIC_MODEL_NAMES modelType = anthropic:CLAUDE_OPUS_4_6;
+configurable openai:OPEN_AI_MODEL_NAMES modelType = openai:GPT_4_1;
+
+// Route model calls through the Gateway's inference target rather than straight to
+// api.openai.com. The Gateway then governs the model conversation the same way it
+// already governs tool calls -- Cedar policy and Bedrock Guardrails apply to every model
+// call -- and it holds the OpenAI key in the token vault, so the agent never sees it.
+//
+// Ends in `/v1`: the provider posts to `{serviceUrl}/chat/completions`, and the Gateway
+// serves the OpenAI Chat Completions API at `/inference/v1/chat/completions`.
+configurable string inferenceUrl =
+    "https://ballerina-agent-gatewa-01gzl3luj1.gateway.bedrock-agentcore.us-east-1.amazonaws.com/inference/v1";
 
 // An AgentCore Gateway -- or any MCP server -- speaking streamable HTTP. Its tools are
 // discovered at startup and offered to the agent alongside the local ones below.
@@ -40,7 +49,7 @@ type AgentIdentity record {|
 |};
 
 # Report which process actually ran this tool. A local `@ai:AgentTool` runs inside the
-# agent itself; `ballerina-mcp-server___whoAmI` runs in a separate container behind the
+# agent itself; `ballerinaMcpServer___whoAmI` runs in a separate container behind the
 # Gateway. Asking both in one conversation is the cheapest way to see the difference --
 # in the trace the local call is a bare `execute_tool` span with no HTTP beneath it,
 # while the Gateway one carries a whole client stack and the Gateway's own spans.
@@ -53,8 +62,6 @@ isolated function whereAmIRunning() returns AgentIdentity => {
     utcTime: time:utcToString(time:utcNow())
 };
 
-final ai:ModelProvider claudeModel = check new anthropic:ModelProvider(anthropicApiKey, modelType);
-
 // Ballerina's HTTP client fetches a token from `tokenUrl` and renews it before expiry, so
 // nothing here goes stale. Scopes are omitted deliberately: Cognito then grants every scope
 // the client is allowed, which avoids depending on the exact resource-server prefix.
@@ -65,6 +72,31 @@ final http:BearerTokenConfig? tokenAuth = mcpAuthToken == "" ? () : {token: mcpA
 
 // OAuth2 wins when both are supplied.
 final http:ClientAuthConfig? gatewayAuth = oauthAuth ?: tokenAuth;
+
+# Mints a Gateway access token with the same Cognito client credentials the MCP toolkit
+# uses.
+#
+# + return - A bearer token for the Gateway, or an error if the token endpoint refuses
+isolated function mintGatewayToken() returns string|error {
+    http:Client tokenClient = check new (mcpTokenUrl);
+    http:Request request = new;
+    request.setTextPayload(string `grant_type=client_credentials&client_id=${mcpClientId}` +
+            string `&client_secret=${mcpClientSecret}`, "application/x-www-form-urlencoded");
+    // Open record: Cognito returns expires_in and token_type alongside the token.
+    record {string access_token;} token = check tokenClient->post("", request);
+    return token.access_token;
+}
+
+// `openai:ModelProvider` sends its key as `Authorization: Bearer`, which is exactly what the
+// Gateway's CUSTOM_JWT authorizer reads, so the Gateway token goes in as the "API key" and
+// needs no translation. (`anthropic:ModelProvider` hardcodes `x-api-key` and needed a
+// loopback forwarder for the same job.)
+//
+// The token is minted once, at startup, and Cognito issues one-hour tokens: the provider's
+// auth is fixed to a static token, so it cannot renew one. A container that lives past an
+// hour will start failing model calls.
+final ai:ModelProvider model =
+    check new openai:ModelProvider(check mintGatewayToken(), modelType, inferenceUrl);
 
 // Connects at startup: `ai:McpToolKit` calls `listTools` in its `init`, so the tool list is
 // fixed once the agent is built. An unreachable Gateway therefore stops the container from
@@ -82,10 +114,6 @@ final ai:Agent assistantAgent = check new (
     systemPrompt = {
         role: "Assistant",
         instructions: "You are a helpful assistant. Use the provided tools when they help answer the question."
-    },
-    model = claudeModel,
-    // A plain literal, so the visual editor can resolve and display every tool. Local
-    // `@ai:AgentTool` functions first, then the Gateway toolkit, which expands to the
-    // MCP and REST targets it discovered at startup.
-    tools = [sum, multiply, whereAmIRunning, gateway]
+    }, memory = (), model = model, tools = [sum, multiply, whereAmIRunning, gateway]
 );
+

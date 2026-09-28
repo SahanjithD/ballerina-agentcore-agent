@@ -238,6 +238,20 @@ aws lambda add-permission --function-name <fn> --region us-east-1 \
 
 which fills in both the principal and the condition correctly.
 
+**Target names must not contain hyphens if the gateway has a policy engine.** Target
+names only allow letters, digits and hyphens (`([0-9a-zA-Z][-]?){1,100}` -- no
+underscores), and every tool is exposed as `<target>___<tool>`. Cedar's schema generator
+rejects a hyphen in any tool name with `unexpected token '-'`, and one bad name fails
+the whole schema: every `CreatePolicy` then ends in `CREATE_FAILED` with *"Policy
+references an action that does not exist on the target gateway"*, even for tools on
+other targets, in both `ENFORCE` and `LOG_ONLY`, and nothing is logged anywhere. Use
+camelCase (`ballerinaMcpServer`). Reproducible locally with the open-source generator
+(`pip install cedar-policy-mcp-schema-generator`, 0.6.0 and 0.6.1).
+
+A permit scoped to one action but any principal then fails the semantic check instead
+("Overly Permissive"); pass `--validation-mode IGNORE_ALL_FINDINGS` when that breadth
+is intended. Schema checks still run in that mode.
+
 ### Testing locally
 
 Neither backend needs AWS to run:
@@ -270,6 +284,63 @@ curated from it because the Gateway needs:
 - no `/health` path, which should not be exposed as a tool.
 
 Gateway also rejects `oneOf`/`anyOf`/`allOf`, so keep response schemas flat.
+
+## Model calls through the Gateway
+
+The agent does not call the model provider directly. Every model call goes to the
+Gateway's inference target, so the Gateway's Cedar policies and guardrails apply to the
+model conversation the same way they apply to tool calls, and the provider's API key lives
+only in the Gateway's token vault -- the runtime has no key at all.
+
+The agent uses `openai:ModelProvider` with `inferenceUrl` ending in `/inference/v1`; the
+provider posts to `{serviceUrl}/chat/completions`. It sends its key as
+`Authorization: Bearer`, which is what the Gateway's CUSTOM_JWT authorizer reads, so a
+Cognito token minted at startup goes in as the "API key" (see `agents.bal` for the
+one-hour token lifetime this implies).
+
+The Gateway's policy engine must permit the inference action or be in `LOG_ONLY`;
+otherwise every model call is denied.
+
+### Using Anthropic instead: the loopback forwarder
+
+`anthropic:ModelProvider` (`ballerinax/ai.anthropic` 1.3.5) hardcodes `x-api-key` and
+exposes no auth config, so a Gateway token passed as its key never reaches the
+authorizer. The workaround is a forwarder inside the same container: the provider calls it
+on loopback, and it sends the request on to the Gateway with `Authorization: Bearer`.
+Proven on AgentCore Runtime -- requests reached Anthropic through the Gateway, with the
+key injected from the token vault.
+
+```ballerina
+import ballerinax/ai.anthropic;
+
+// Ends in `/v1`: the provider posts to `{serviceUrl}/messages`, and the Gateway serves the
+// Anthropic Messages API at `/inference/v1/messages`.
+configurable string inferenceUrl = "https://<gateway-id>.gateway.bedrock-agentcore.<region>.amazonaws.com/inference/v1";
+
+// Attaches the bearer token and renews it before expiry, from the same Cognito client
+// credentials the MCP toolkit uses (`oauthAuth` in agents.bal).
+final http:Client inferenceGateway = check new (inferenceUrl, auth = oauthAuth);
+
+// Bound to 127.0.0.1 only: this endpoint attaches the Gateway credentials, so nothing
+// outside the container may reach it.
+service /v1 on new http:Listener(9091, host = "127.0.0.1") {
+    resource function post messages(http:Request req) returns http:Response|error {
+        req.removeHeader("x-api-key");
+        // Let the client set the Gateway's host rather than forward 127.0.0.1.
+        req.removeHeader("host");
+        return inferenceGateway->forward("/messages", req);
+    }
+}
+
+// The key is a placeholder: it only reaches the forwarder above, which strips it.
+final ai:ModelProvider model =
+    check new anthropic:ModelProvider("unused", modelType, "http://127.0.0.1:9091/v1");
+```
+
+Unlike the OpenAI setup above, this one renews the token, so it has no one-hour limit.
+The Cedar action for the Anthropic target is expected to be
+`anthropic___POST:/v1/messages` (not yet confirmed: policy validation was failing for the
+whole Gateway at the time).
 
 ## Notes
 
