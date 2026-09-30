@@ -27,7 +27,8 @@ service / on new http:Listener(port) {
 
     // Primary agent invocation endpoint.
     resource function post invocations(@http:Payload InvocationRequest payload,
-            @http:Header {name: "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"} string? sessionId)
+            @http:Header {name: "X-Amzn-Bedrock-AgentCore-Runtime-Session-Id"} string? sessionId,
+            http:Headers headers)
             returns http:Ok|http:InternalServerError {
 
         // AgentCore keeps one container session per session id, so it doubles
@@ -35,7 +36,24 @@ service / on new http:Listener(port) {
         string session = sessionId ?: "default";
         log:printInfo("invoking agent", session = session);
 
-        string|ai:Error response = assistantAgent.run(payload.prompt, sessionId = session);
+        // Which AgentCore Identity headers the Runtime delivered. Presence only: the
+        // workload access token is a credential and its value must never be logged.
+        log:printInfo("identity headers", session = session,
+                workloadAccessToken = headers.hasHeader("WorkloadAccessToken"),
+                identityWat = headers.hasHeader("X-Amz-Bedrock-AgentCore-Identity-WAT"),
+                userId = headers.hasHeader("X-Amzn-Bedrock-AgentCore-Runtime-User-Id"),
+                oauth2CallbackUrl = headers.hasHeader("OAuth2CallbackUrl"));
+
+        string|http:HeaderNotFoundError workloadToken = headers.getHeader("WorkloadAccessToken");
+        ai:Agent|error agent = agentFor(workloadToken is string ? workloadToken : ());
+        if agent is error {
+            log:printError("agent unavailable", agent, session = session);
+            return <http:InternalServerError>{
+                body: <FailureResponse>{message: agent.message(), status: "error"}
+            };
+        }
+
+        string|ai:Error response = agent.run(payload.prompt, sessionId = session);
         if response is ai:Error {
             log:printError("agent run failed", response, session = session);
             return <http:InternalServerError>{

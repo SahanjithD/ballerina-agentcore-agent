@@ -23,8 +23,9 @@ Versions: Ballerina 2201.13.5, `ballerina/ai` 1, `ballerinax/ai.openai` 1.4.1,
 | Cedar policy on tool and model calls | ✅ | Target names without hyphens (§2.1) |
 | Tool-menu filtering | ✅ | Nothing |
 | Guardrails in Cedar on tool input | ✅ | Nothing |
-| Guardrails in Cedar on tool output | ⚠️ | Only ever observed in LOG_ONLY |
-| Guardrails on the model conversation | ✅ / ⬜ | Via `ApplyGuardrail` in code (§2.6); via Gateway policy not yet tested |
+| Guardrails in Cedar on tool output | ✅ | Nothing (`suppressOutput`, proven in ACTIVE) |
+| Guardrails on model calls at the Gateway | ⚠️ | Plain-string fields only; chat `messages` cannot be screened (§2.5) |
+| Guardrails on the model conversation | ✅ | `ApplyGuardrail` in code (§2.6) |
 | Temporal (session-aware) policies | ❌ | `ai:McpToolKit` cannot send the session header (§2.7) |
 | Tools defined inside the agent | ❌ | AWS cannot see them, same as for Python |
 | Traces in CloudWatch GenAI Observability | ✅ | A collector in the container (§3) |
@@ -142,6 +143,11 @@ final ai:ModelProvider model =
 Proven: requests reached Anthropic through the Gateway with the key injected from the
 vault. Upstream issue: [wso2/product-integrator#2573](https://github.com/wso2/product-integrator/issues/2573).
 
+**Why not pass the token as the Anthropic key:** the Gateway rejects a JWT sent in
+`x-api-key` with `401 Missing Bearer token` (tested). The official Python SDK sends only
+`X-Api-Key` for `api_key=` too; Python can switch to `auth_token=`, which sends Bearer.
+Ballerina's provider has no such option, hence the forwarder.
+
 **Why not a Gateway interceptor Lambda:** the request interceptor runs *after* inbound
 authentication ("After inbound authentication succeeds, the gateway invokes the request
 Lambda interceptor", [AWS Security blog](https://aws.amazon.com/blogs/security/implement-custom-authentication-for-tools-integration-using-request-lambda-interceptor-in-agentcore-gateway/)),
@@ -153,6 +159,9 @@ so it isn't recommended just to fix one header.
 ---
 
 ## 2. Governance: AgentCore Policy (Cedar)
+
+Every policy proven below is saved as a ready-to-deploy file in [policy/](policy/README.md),
+with its definition key, validation mode and the observed result.
 
 ### 2.1 Target names must not contain hyphens
 
@@ -285,10 +294,31 @@ when guardrails {
 };
 ```
 
-The same form over `context.output.<field>` (suppressing a tool's response) was only ever
-observed logging, never blocking. AWS documents that guardrail policies also apply to
-inference targets (`POST /inference`), which would guard the model conversation at the
-Gateway; that has not been tested yet.
+Proven in `ACTIVE` mode on a REST tool:
+
+| Policy | Call | Result |
+|---|---|---|
+| `forbid … when guardrails { SensitiveInformation(["EMAIL"], [context.input.name]) … }` | `greetPerson(name="jane.doe@example.com")` | `Tool Execution Denied … guardrail_greet_email_input` |
+| `suppressOutput … when guardrails { SensitiveInformation(["NAME"], [context.output.message]) … }` | `greetPerson(name="Jane Smith")` | `Output blocked by policy … guardrail_greet_name_output` |
+| (control) | `greetPerson(name="world")` | normal response |
+
+**Guardrails on model calls** (inference targets) work, but only on **plain-string** fields
+of the request body:
+
+- OpenAI Chat Completions: the prompt is in `messages`, which Cedar types `Set<record>`.
+  A guardrail rejects it: *"argument `context.input.messages` has type `Set<record>` ...
+  but the provider declares argument type `string`"*. So the chat conversation cannot be
+  screened by a Gateway guardrail policy, **for any client language**.
+- OpenAI Responses (`<target>___POST:/v1/responses`): `instructions` is a string and can be
+  screened. Proven: an email in `instructions` returned
+  `403 ... denied due to guardrail_inference_instructions`; the same request without it
+  returned 200. `input` is typed `record` (string-or-list), and its string member could not
+  be located (`typeChoice0`, the open-source generator's name, is not present).
+- Log-only decisions on direct `/inference` calls did not appear in `aws/spans` within 5
+  minutes, so test these in `ACTIVE` mode.
+
+For screening the conversation itself, use `ApplyGuardrail` from code (§2.6), or a
+Gateway request interceptor, which is what AWS's own inference-gateway sample does.
 
 ### 2.6 Guarding the model conversation in code (`ApplyGuardrail`)
 
@@ -352,7 +382,26 @@ per-conversation value anyway. This needs an upstream change to `ballerina/mcp` 
 ### 2.8 Tools defined inside the agent
 
 `@ai:AgentTool` functions run in-process and never cross the Gateway, so no AWS control
-applies to them, the same as local tools in any framework. `ai:RequiresApproval` on the
+applies to their execution, the same as local tools in any framework.
+
+**Policies cannot target them through the model call either** (tested). The Gateway does
+see them, inside the model request's `tools` list, which Cedar types as
+`Set<{type: String, function: {name: String, description?: String, parameters?: {}, strict?: Bool}}>`.
+But `contains` needs a record literal with exactly the same attributes, and a literal can
+never satisfy the optional ones: without `strict` the validator says the records "must have
+exactly the same attributes"; with `strict: false` it rejects the literal's non-optional
+`False` against `strict?: Bool`. Guardrails reject the list outright (`Set<record>`, not
+`string`). The most a policy can express is `context.input.tools.isEmpty()`, which blocks
+every model call that offers any tool. The model's reply (`context.output.choices`) is a
+`Set<record>` too.
+
+The Gateway mechanism that can act on them is an **interceptor Lambda** on the inference
+target, which receives the full JSON body: a REQUEST interceptor can remove an entry from
+`tools` or reject the call, and a RESPONSE interceptor can replace the model's reply
+("inference targets all use this `http` payload structure",
+[interceptor types](https://docs.aws.amazon.com/bedrock-agentcore/latest/devguide/gateway-interceptors-types.html)).
+Buffered mode only, 6 MB request+response, and AWS's own sample reports that a request
+interceptor timeout fails open. Not yet tested here. `ai:RequiresApproval` on the
 annotation (a `boolean` or a predicate taking the tool's own parameters) is the
 in-process control. To put a tool under AWS governance, host it behind the Gateway (see
 RECREATE.md).
@@ -439,9 +488,29 @@ GoalSuccessRate 0.75, Helpfulness 0.56, InstructionFollowing 1.0, ResponseReleva
 **Always read the judge's explanation, not just the score.** A uniform 1.0 across every
 evaluator means the judge received empty input.
 
-**Open:** `TOOL_CALL`-level evaluators fail with no diagnostic. The likely cause is that
-Ballerina's spans don't record the list of tools that were available to the model. Not
-yet confirmed.
+**Tool-level evaluators need `session.id` on every span** (cause found). Online, they failed
+with no diagnostic. The on-demand `Evaluate` API names the cause:
+
+```bash
+aws bedrock-agentcore evaluate --region <REGION> --evaluator-id Builtin.ToolSelectionAccuracy \
+  --evaluation-input file://input.json     # {"sessionSpans": [ ...spans of one session... ]}
+  --evaluation-target file://target.json   # {"spanIds": ["<execute_tool span id>"]}
+```
+
+| Spans submitted | Result |
+|---|---|
+| As emitted (only `invoke_agent` has `session.id`, copied by the collector) | `EvaluationInput has spans from more than one session, please submit each session separately` |
+| Same spans, `session.id` on every span | `ToolSelectionAccuracy` = 1.0, "The agent called the 'sum' tool with parameters a=2 and b=3, which directly addresses the user's request..." |
+
+Session- and trace-level evaluators only read the `invoke_agent` span, which is why they
+worked. AWS's own instrumentation puts `session.id` on every span (via baggage). The
+collector cannot copy an attribute from one span to its children, so the fix has to come
+from the agent side (propagate the session to child spans) -- not yet implemented.
+
+**Trace continuity.** The platform's `AgentCore.Runtime.Invoke` span and the agent's own
+spans land in different traces: the Ballerina HTTP listener starts a new trace rather than
+continuing the one AgentCore passes in. CloudWatch therefore cannot show the platform hop
+and the agent's work as one trace. Not yet fixed.
 
 ---
 
@@ -517,4 +586,18 @@ Look for `aws.agentcore.gateway.policy.mode`, `aws.agentcore.policy.allowed_tool
 | Agent → Gateway | Cognito client credentials, secret in a runtime environment variable | ⚠️ Works; the secret lives in the environment |
 | Gateway → MCP runtime / Lambda | Gateway IAM role (SigV4) | ✅ |
 | Gateway → model provider | API key from the token vault | ✅ |
-| Agent obtaining its token from AgentCore Identity (no secret in the environment) | Workload identity | ⬜ Not yet tested; Ballerina has no AgentCore SDK, so it would be signed HTTP calls, like §2.6 |
+| Agent obtaining its token from AgentCore Identity (no secret in the environment) | Workload identity | In progress (below) |
+
+**Does the Runtime give the agent a workload access token?** Only when the caller names a
+user (tested, by logging header presence in the agent):
+
+| Invocation | `WorkloadAccessToken` header in the container |
+|---|---|
+| IAM (SigV4), no user id | absent |
+| IAM with `--runtime-user-id priya` (`X-Amzn-Bedrock-AgentCore-Runtime-User-Id`) | **present** |
+
+The user-id header itself is not forwarded; the Runtime exchanges it for the token. The
+caller needs `bedrock-agentcore:InvokeAgentRuntimeForUser` (scope it to the runtime ARN). The
+user id is not verified under IAM inbound, which is why AWS recommends JWT inbound for real
+users. The agent cannot mint a token for itself: runtime-managed workload identities
+"cannot retrieve workload access tokens directly".

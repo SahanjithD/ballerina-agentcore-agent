@@ -8,6 +8,9 @@
 //
 // `forbid` wins over `permit`, so this overrides the baseline above.
 //
+// While nothing permits generateUuids, validation reports "Overly Restrictive"; create
+// with --validation-mode IGNORE_ALL_FINDINGS. API definition key: {"cedar": ...}.
+//
 // Action naming is "<targetName>___<toolName>" -- three underscores. Confirm yours with
 // tools/list against the gateway before relying on it.
 forbid(
@@ -16,5 +19,6 @@ forbid(
     resource == AgentCore::Gateway::"GATEWAY_ARN_PLACEHOLDER"
 )
 when {
-    context.input.count > 5
+    // `count` is optional in the tool's schema, so test for it before reading it.
+    context.input has count && context.input.count > 5
 };

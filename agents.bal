@@ -1,5 +1,6 @@
 import ballerina/ai;
 import ballerina/http;
+import ballerina/log;
 import ballerina/time;
 import ballerinax/ai.openai;
 
@@ -62,19 +63,9 @@ isolated function whereAmIRunning() returns AgentIdentity => {
     utcTime: time:utcToString(time:utcNow())
 };
 
-// Ballerina's HTTP client fetches a token from `tokenUrl` and renews it before expiry, so
-// nothing here goes stale. Scopes are omitted deliberately: Cognito then grants every scope
-// the client is allowed, which avoids depending on the exact resource-server prefix.
-final http:OAuth2ClientCredentialsGrantConfig? oauthAuth = mcpTokenUrl == "" ? ()
-    : {tokenUrl: mcpTokenUrl, clientId: mcpClientId, clientSecret: mcpClientSecret};
-
-final http:BearerTokenConfig? tokenAuth = mcpAuthToken == "" ? () : {token: mcpAuthToken};
-
-// OAuth2 wins when both are supplied.
-final http:ClientAuthConfig? gatewayAuth = oauthAuth ?: tokenAuth;
-
-# Mints a Gateway access token with the same Cognito client credentials the MCP toolkit
-# uses.
+# Mints a Gateway access token with the Cognito client credentials held in configuration.
+# Only used when AgentCore Identity is not configured or the Runtime supplied no workload
+# access token (see `identity.bal`).
 #
 # + return - A bearer token for the Gateway, or an error if the token endpoint refuses
 isolated function mintGatewayToken() returns string|error {
@@ -87,33 +78,71 @@ isolated function mintGatewayToken() returns string|error {
     return token.access_token;
 }
 
-// `openai:ModelProvider` sends its key as `Authorization: Bearer`, which is exactly what the
-// Gateway's CUSTOM_JWT authorizer reads, so the Gateway token goes in as the "API key" and
-// needs no translation. (`anthropic:ModelProvider` hardcodes `x-api-key` and needed a
-// loopback forwarder for the same job.)
-//
-// The token is minted once, at startup, and Cognito issues one-hour tokens: the provider's
-// auth is fixed to a static token, so it cannot renew one. A container that lives past an
-// hour will start failing model calls.
-final ai:ModelProvider model =
-    check new openai:ModelProvider(check mintGatewayToken(), modelType, inferenceUrl);
+# Picks where the Gateway token comes from. AgentCore Identity when it is configured and
+# the Runtime passed a workload access token; otherwise a static token, then the client
+# secret -- the fallbacks exist so the agent still runs when invoked without a user id.
+#
+# + workloadToken - The invocation's `WorkloadAccessToken` header, if any
+# + return - A Gateway bearer token and where it came from, or an error
+isolated function gatewayToken(string? workloadToken) returns [string, string]|error {
+    if gatewayCredentialProvider != "" && workloadToken is string {
+        return [check gatewayTokenFromIdentity(workloadToken), "agentcore-identity"];
+    }
+    if mcpAuthToken != "" {
+        return [mcpAuthToken, "static-token"];
+    }
+    if mcpClientSecret != "" {
+        return [check mintGatewayToken(), "client-secret"];
+    }
+    return error("no Gateway credentials: invoke with a user id so the Runtime supplies a " +
+            "workload access token, or configure a client secret");
+}
 
-// Connects at startup: `ai:McpToolKit` calls `listTools` in its `init`, so the tool list is
-// fixed once the agent is built. An unreachable Gateway therefore stops the container from
-// starting rather than silently serving an agent that is missing half its tools.
-//
-// Not optional, deliberately. The Ballerina visual editor renders the agent's tools only
-// when `tools` below is a plain array literal; a conditional expression leaves the node
-// blank. Making the toolkit unconditional is what keeps the literal, at the cost of the
-// old `mcpServerUrl = ""` path that ran with local tools only. That path existed for local
-// testing, and losing it is consistent with the fail-fast behaviour described above --
-// there is no longer a way to boot without a reachable Gateway.
-final ai:McpToolKit gateway = check new (mcpServerUrl, auth = gatewayAuth);
+# Builds the agent with a Gateway token.
+#
+# Built on the first invocation rather than at startup, because the workload access token
+# only exists per request. AgentCore gives each session its own container, so one agent per
+# container is one agent per session. The token is not renewed (the OpenAI provider takes a
+# fixed key), so a session outliving the token's hour fails its model calls.
+#
+# + token - A Gateway bearer token
+# + return - The agent, or an error if the Gateway cannot be reached
+isolated function buildAgent(string token) returns ai:Agent|error {
+    // `ai:McpToolKit` calls `listTools` in its `init`, so the Gateway's (policy-filtered)
+    // tool list is fixed when the agent is built.
+    ai:McpToolKit gateway = check new (mcpServerUrl, auth = {token});
 
-final ai:Agent assistantAgent = check new (
-    systemPrompt = {
-        role: "Assistant",
-        instructions: "You are a helpful assistant. Use the provided tools when they help answer the question."
-    }, memory = (), model = model, tools = [sum, multiply, whereAmIRunning, gateway]
-);
+    // The OpenAI provider sends its key as `Authorization: Bearer`, which is what the
+    // Gateway's CUSTOM_JWT authorizer reads.
+    ai:ModelProvider model = check new openai:ModelProvider(token, modelType, inferenceUrl);
 
+    // A plain literal for `tools`, so the Ballerina visual editor can display every tool.
+    return check new ai:Agent(
+        systemPrompt = {
+            role: "Assistant",
+            instructions: "You are a helpful assistant. Use the provided tools when they help answer the question."
+        }, memory = (), model = model, tools = [sum, multiply, whereAmIRunning, gateway]
+    );
+}
+
+isolated ai:Agent? cachedAgent = ();
+
+# Returns this container's agent, building it on first use.
+#
+# + workloadToken - The invocation's `WorkloadAccessToken` header, if any
+# + return - The agent, or an error
+isolated function agentFor(string? workloadToken) returns ai:Agent|error {
+    lock {
+        ai:Agent? existing = cachedAgent;
+        if existing is ai:Agent {
+            return existing;
+        }
+    }
+    [string, string] [token, tokenSource] = check gatewayToken(workloadToken);
+    log:printInfo("gateway token obtained", tokenSource = tokenSource);
+    ai:Agent agent = check buildAgent(token);
+    lock {
+        cachedAgent = agent;
+    }
+    return agent;
+}
