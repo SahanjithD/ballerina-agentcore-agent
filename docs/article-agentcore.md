@@ -41,6 +41,14 @@ and which rules were applied.
 **Quality you can track.** Live conversations are scored continuously, so the business
 can see whether a change made the agent better or worse without waiting for complaints.
 
+**An off switch that doesn't need a release.** One access rule stops an agent from calling
+its model or any tool as soon as the rule is active. Nothing is redeployed, and the rule
+is on the record like every other decision.
+
+**Costs you can see and bound.** Token use is recorded for every conversation and every
+step. Rules can cap what a single request may ask for. The Runtime charges for processing
+while the agent is working, not while it waits on a model or a tool.
+
 **Freedom of model choice.** The Gateway connects to OpenAI, Anthropic and the models on
 Amazon Bedrock, and the same controls apply to model calls whichever provider you choose.
 
@@ -77,6 +85,10 @@ The Gateway reaches each tool with its own AWS role, and reaches the model provi
 key held in AgentCore Identity's vault. The agent's container holds no provider key at
 all, which removes a common way credentials leak from AI projects.
 
+**Every conversation is sealed off.** AgentCore Runtime runs each session in its own
+micro virtual machine, with its own memory and file system, and clears it when the
+session ends. One customer's conversation has no path to another's.
+
 **Every action is checked before it happens.** AgentCore Policy evaluates every tool call
 and every model call against rules written in Cedar, a readable policy language your
 security team can review, approve and version like any other control. Rules can be broad
@@ -86,15 +98,21 @@ records in one request"). Three properties matter:
 - **Default-deny.** Under enforcement, an agent can do nothing it hasn't been granted.
 - **Restricted tools stay invisible.** An agent is only shown the tools it could be allowed
   to use, so a restricted capability never appears in front of the model.
-- **Content guardrails in the same rules.** Amazon Bedrock Guardrails can be part of each
-  decision, so a request carrying personal data, or an attempt to manipulate the agent,
-  is stopped before it reaches a tool.
+- **Content guardrails in the same rules.** Amazon Bedrock Guardrails checks for personal
+  data, harmful content and prompt attacks can be part of each decision. A request
+  carrying a customer's email address can be stopped before it reaches a tool, and a
+  tool's answer that exposes personal data can be withheld before the model sees it.
+
+Because the rules sit outside the agent, they also give you an immediate way to stop it.
+A single deny rule cuts an agent off from its model and its tools without touching its
+code or its deployment.
 
 ![Figure 3: Every tool call is checked, and every decision recorded](figures/fig3-request-path.png)
 
 ## For your operations team: a record of everything
 
-Each conversation becomes a single trace in Amazon CloudWatch. It shows:
+Each conversation is recorded in Amazon CloudWatch, its steps tied together by the
+conversation's session id. The record shows:
 - the request;
 - every model turn and its token cost;
 - every tool the agent chose, with what went in and what came back;
@@ -104,6 +122,11 @@ WSO2 agents and WSO2 MCP tool servers report their own side of each step using t
 industry-standard OpenTelemetry conventions for generative AI. A slow or unexpected
 answer can be traced to the exact step that caused it, and logs carry the same
 identifiers, so the full detail is always one step away.
+
+The same record answers the cost question. Token use is captured per model call, so you
+can see what a conversation cost, which steps drove it, and how a prompt or model change
+moved it. Retention is yours to set, so records are kept as long as your own audit
+requirements demand.
 
 ## For the business: quality you can measure
 
@@ -118,9 +141,17 @@ model-based judges covering:
 Every score comes with the judge's written reasoning, so a drop in quality points to a
 cause, not just an alert.
 
-Quality stops being a pre-launch test and becomes a trend line on live traffic. When the
-team changes a prompt, adopts a new model or adds a tool, the effect shows up in the
-numbers.
+Judges can grade a whole conversation, a single answer, or each tool the agent used:
+whether it picked the right one and passed the right inputs.
+
+Quality stops being a one-time pre-launch test. Before a release, run the new build
+through a set of test conversations and compare its scores with the version in
+production. After the release, the same judges score live traffic, so when the team
+changes a prompt, adopts a new model or adds a tool, the effect shows up as a trend line.
+
+The built-in judges cover general quality. For measures only your business can define,
+such as following refund policy or using approved wording, you add your own judges: an
+AI judge with your instructions and scoring scale, or plain code with your rules.
 
 ## Guidance for architects
 
@@ -132,6 +163,12 @@ numbers.
 - **Keep tracing in the same deployment unit as the agent.** A lightweight OpenTelemetry
   Collector runs alongside the agent in its container and delivers its traces to
   CloudWatch.
+- **Give every customer conversation its own session id.** Isolation, memory and the
+  conversation record all follow the session, so a shared id merges customers that
+  should stay apart.
+- **Tag every step with the session id.** Conversation-level scores work with the
+  defaults. Scores for individual tool choices need every recorded step to carry the
+  conversation's session id.
 - **Adopt enforcement in two steps.** Start with a broad permit so existing tools keep
   working, then tighten with specific rules one at a time.
 

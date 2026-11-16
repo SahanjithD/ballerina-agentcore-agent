@@ -1,0 +1,98 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.panel{position:absolute;top:128px;width:736px;height:712px;background:#fff;border:1px solid var(--line);border-radius:10px}
+.eb{position:absolute;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+.hd{position:absolute;font-size:22px;font-weight:700}
+.ag{position:absolute;height:60px;background:var(--bg);border:1px solid var(--line);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600}
+.sys{position:absolute;height:60px;background:#E4E8EE;border:1px solid #B9C2CE;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#3A4558}
+.tool{position:absolute;height:60px;background:var(--orange-soft);border:1px solid #F3B48E;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;color:#9A3A0A}
+.gw{position:absolute;left:1040px;top:270px;width:112px;height:390px;background:var(--teal);border-radius:8px;color:#fff;text-align:center;padding-top:18px;font-size:14px;font-weight:700;letter-spacing:1px;line-height:1.35;text-transform:uppercase}
+.pol{position:absolute;left:1052px;top:592px;width:88px;height:44px;background:#fff;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--teal)}
+.caps{position:absolute;top:740px;display:flex;gap:14px}
+.cap{display:flex;align-items:center;gap:8px;height:44px;padding:0 15px;border-radius:22px;font-size:15px;font-weight:600}
+.bad{background:var(--deny-soft);color:var(--deny)}
+.good{background:var(--teal-soft);color:var(--teal)}
+.cap b{font-size:17px}
+.wso{background:var(--orange-soft);color:#9A3A0A}
+.wbox{position:absolute;left:1178px;top:226px;width:196px;height:470px;border:2px solid var(--orange);border-radius:10px;background:#FFF8F3}
+.wh{position:absolute;left:1194px;top:240px;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--orange)}
+.wsub{position:absolute;left:1194px;top:640px;width:170px;font-size:13.5px;line-height:1.35;color:#6B3A1E}
+.tool svg{margin-right:8px;flex:none}
+.ag.w{background:var(--orange-soft);border-color:#F3B48E;color:#9A3A0A;font-weight:700}
+</style></head>
+<body><div class="stage">
+  <div class="title">One governed tool layer instead of a connection per agent</div>
+  <div class="legend"><span><i style="background:var(--teal)"></i>Amazon Bedrock AgentCore</span><span><i style="background:var(--orange)"></i>WSO2 Integrator</span></div>
+
+  <!-- LEFT: without -->
+  <div class="panel" style="left:48px"></div>
+  <div class="eb" style="left:80px;top:160px;color:var(--deny)">Without a shared tool layer</div>
+  <div class="hd" style="left:80px;top:186px">Every agent team connects to every system</div>
+  <div class="ag" style="left:96px;top:290px;width:180px">Agent A</div>
+  <div class="ag" style="left:96px;top:430px;width:180px">Agent B</div>
+  <div class="ag" style="left:96px;top:570px;width:180px">Agent C</div>
+  <div class="sys" style="left:560px;top:290px;width:176px">CRM</div>
+  <div class="sys" style="left:560px;top:430px;width:176px">Billing</div>
+  <div class="sys" style="left:560px;top:570px;width:176px">Orders</div>
+  <div class="caps" style="left:80px">
+    <div class="cap bad"><b>✕</b>Built 9 times</div>
+    <div class="cap bad"><b>✕</b>Secured 9 times</div>
+    <div class="cap bad"><b>✕</b>Reviewed 9 times</div>
+  </div>
+
+  <!-- RIGHT: with -->
+  <div class="panel" style="left:816px"></div>
+  <div class="eb" style="left:848px;top:160px;color:var(--teal)">With WSO2 Integrator on AgentCore</div>
+  <div class="hd" style="left:848px;top:186px">Every agent uses the same governed tools</div>
+  <div class="ag w" style="left:848px;top:290px;width:140px">Your AI agent</div>
+  <div class="ag" style="left:848px;top:430px;width:140px">Strands agent</div>
+  <div class="ag" style="left:848px;top:570px;width:140px">Any MCP agent</div>
+  <div class="gw">AgentCore<br>Gateway</div>
+  <div class="pol">Policy</div>
+  <div class="wbox"></div>
+  <div class="wh">WSO2 Integrator</div>
+  <div class="tool" style="left:1194px;top:290px;width:164px"><svg width="18" height="20" viewBox="-6 -8 12 15"><path d="M-3.5,-1 V-3.5 A3.5,3.5 0 0 1 3.5,-3.5 V-1" fill="none" stroke="#9A3A0A" stroke-width="1.6"/><rect x="-5" y="-1" width="10" height="7" rx="1.2" fill="#9A3A0A"/></svg>CRM tool</div>
+  <div class="tool" style="left:1194px;top:430px;width:164px"><svg width="18" height="20" viewBox="-6 -8 12 15"><path d="M-3.5,-1 V-3.5 A3.5,3.5 0 0 1 3.5,-3.5 V-1" fill="none" stroke="#9A3A0A" stroke-width="1.6"/><rect x="-5" y="-1" width="10" height="7" rx="1.2" fill="#9A3A0A"/></svg>Billing tool</div>
+  <div class="tool" style="left:1194px;top:570px;width:164px"><svg width="18" height="20" viewBox="-6 -8 12 15"><path d="M-3.5,-1 V-3.5 A3.5,3.5 0 0 1 3.5,-3.5 V-1" fill="none" stroke="#9A3A0A" stroke-width="1.6"/><rect x="-5" y="-1" width="10" height="7" rx="1.2" fill="#9A3A0A"/></svg>Orders tool</div>
+  <div class="wsub">Your integrations, exposed as MCP tools</div>
+  <div class="sys" style="left:1402px;top:290px;width:118px">CRM</div>
+  <div class="sys" style="left:1402px;top:430px;width:118px">Billing</div>
+  <div class="sys" style="left:1402px;top:570px;width:118px">Orders</div>
+  <div class="caps" style="left:848px">
+    <div class="cap wso"><b>✓</b>Built once in WSO2</div>
+    <div class="cap wso"><b>✓</b>Secured once in the tool</div>
+    <div class="cap good"><b>✓</b>Governed by AgentCore</div>
+  </div>
+
+  <svg class="wires" viewBox="0 0 1600 900">
+    <defs>
+      <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0E7C7B"/></marker>
+      <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8A95A5"/></marker>
+      <g id="lock">
+        <circle r="11" fill="#fff" stroke="#B42318" stroke-width="1.5"/>
+        <path d="M-3.5,-1 V-3.5 A3.5,3.5 0 0 1 3.5,-3.5 V-1" fill="none" stroke="#B42318" stroke-width="1.6"/>
+        <rect x="-5" y="-1" width="10" height="7" rx="1.2" fill="#B42318"/>
+      </g>
+    </defs>
+    <!-- left: every agent to every system -->
+    <g stroke="#B42318" stroke-width="2" opacity=".55" fill="none">
+      <path d="M276,320 L560,320"/><path d="M276,320 L560,460"/><path d="M276,320 L560,600"/>
+      <path d="M276,460 L560,320"/><path d="M276,460 L560,460"/><path d="M276,460 L560,600"/>
+      <path d="M276,600 L560,320"/><path d="M276,600 L560,460"/><path d="M276,600 L560,600"/>
+    </g>
+    <!-- one credential per connection, placed 54px along each line -->
+    <use href="#lock" x="330" y="320"/><use href="#lock" x="330" y="346.6"/><use href="#lock" x="330" y="373.2"/>
+    <use href="#lock" x="330" y="433.4"/><use href="#lock" x="330" y="460"/><use href="#lock" x="330" y="486.6"/>
+    <use href="#lock" x="330" y="546.8"/><use href="#lock" x="330" y="573.4"/><use href="#lock" x="330" y="600"/>
+
+    <!-- right: agents to gateway to tools to systems -->
+    <g stroke="#0E7C7B" stroke-width="2.5" fill="none">
+      <path d="M988,320 H1038" marker-end="url(#t)"/><path d="M988,460 H1038" marker-end="url(#t)"/><path d="M988,600 H1038" marker-end="url(#t)"/>
+      <path d="M1152,320 H1192" marker-end="url(#t)"/><path d="M1152,460 H1192" marker-end="url(#t)"/><path d="M1152,600 H1192" marker-end="url(#t)"/>
+    </g>
+    <g stroke="#8A95A5" stroke-width="2" fill="none">
+      <path d="M1358,320 H1400" marker-end="url(#g)"/><path d="M1358,460 H1400" marker-end="url(#g)"/><path d="M1358,600 H1400" marker-end="url(#g)"/>
+    </g>
+  </svg>
+</div></body></html>

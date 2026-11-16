@@ -1,0 +1,158 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><link rel="stylesheet" href="base.css">
+<style>
+.lbl{position:absolute;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--muted)}
+.ow{color:var(--orange)}
+.acct{position:absolute;left:300px;top:128px;width:1028px;height:738px;border:2px dashed #AEB8C6;border-radius:10px}
+.acct-l{position:absolute;left:320px;top:118px;background:var(--bg);padding:0 10px;font-size:13px;font-weight:700;letter-spacing:1.4px;color:var(--muted)}
+
+.wbox{position:absolute;border:2px solid var(--orange);border-radius:10px;background:#FFF8F3}
+.wh{position:absolute;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase;color:var(--orange)}
+.wt{position:absolute;font-size:19px;font-weight:700;color:#9A3A0A}
+.wn{position:absolute;font-size:14px;line-height:1.4;color:#6B3A1E}
+.chip{position:absolute;left:64px;width:188px;height:50px;background:#fff;border:1px solid #F3B48E;border-radius:6px;display:flex;align-items:center;padding:0 16px;font-size:15.5px;font-weight:600}
+
+.rt{position:absolute;left:320px;top:176px;width:270px;height:424px;border:2px solid var(--teal);border-radius:8px;background:#fff}
+.h{position:absolute;font-size:13px;font-weight:700;letter-spacing:1.4px;text-transform:uppercase}
+.agent{position:absolute;left:336px;top:270px;width:238px;height:314px;background:var(--orange);border-radius:6px;color:#fff;padding:14px 16px}
+.agent .e{font-size:11.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;opacity:.9}
+.agent .n{font-size:19px;font-weight:700;margin-top:3px;line-height:1.2}
+.agent .row{display:flex;justify-content:space-between;align-items:center;height:30px;margin-top:6px;padding:0 10px;border-radius:4px;background:rgba(255,255,255,.16);font-size:14px;font-weight:700}
+.agent .row:first-of-type{margin-top:12px}
+.agent .row span{font-size:12.5px;font-weight:500;opacity:.92}
+.agent .f{font-size:13px;margin-top:10px;opacity:.95}
+.other{position:absolute;left:336px;top:212px;width:238px;height:46px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:0 16px;display:flex;align-items:center}
+.other .n{font-size:14px;font-weight:700;white-space:nowrap}
+.other .d{font-size:13.5px;color:var(--muted);margin-top:3px;line-height:1.35}
+.idn{position:absolute;left:376px;top:624px;width:214px;height:84px;background:var(--teal-soft);border:2px solid var(--teal);border-radius:6px;padding:11px 14px}
+.idn .n{font-size:16px;font-weight:700;color:var(--teal)}
+.idn .d{font-size:13.5px;margin-top:4px;line-height:1.35}
+
+.gw{position:absolute;left:660px;top:176px;width:230px;height:384px;background:var(--teal);border-radius:8px}
+.gcard{position:absolute;left:674px;width:202px;height:84px;background:#fff;border-radius:6px;padding:10px 14px}
+.gcard .n{font-size:15.5px;font-weight:700;color:var(--teal)}
+.gcard .d{font-size:13.5px;margin-top:3px;line-height:1.35}
+.mdl{position:absolute;left:660px;top:596px;width:180px;height:104px;background:#fff;border:1px solid var(--line);border-radius:6px;padding:11px 14px}
+.mdl .n{font-size:16px;font-weight:700}
+.mdl .d{font-size:13.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+
+.tcard{position:absolute;left:948px;width:334px;height:76px;background:#fff;border:1px solid #F3B48E;border-radius:6px;padding:11px 16px}
+.tcard .n{font-size:16px;font-weight:700;color:#9A3A0A}
+.tcard .d{font-size:13.5px;color:#6B3A1E;margin-top:3px;line-height:1.35}
+.feat{position:absolute;left:948px;width:334px;display:flex;gap:10px;align-items:flex-start;font-size:14px;line-height:1.35;color:#6B3A1E}
+.feat b{flex:none;width:20px;height:20px;border-radius:10px;background:var(--orange);color:#fff;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+
+.sys{position:absolute;left:1360px;width:192px;height:58px;background:#E4E8EE;border:1px solid #B9C2CE;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:15.5px;font-weight:700;color:#3A4558}
+
+.bot{position:absolute;top:734px;height:116px;border-radius:8px;padding:16px 20px}
+.cw{left:320px;width:580px;background:#fff;border:2px solid var(--teal)}
+.ev{left:930px;width:378px;background:var(--teal);color:#fff}
+.bot .n{font-size:19px;font-weight:700}
+.cw .n{color:var(--teal)}
+.bot .d{font-size:14.5px;margin-top:8px;line-height:1.45}
+.pre{position:absolute;left:48px;top:706px;width:220px;height:132px;background:var(--orange-soft);border:2px solid var(--orange);border-radius:8px;padding:14px 16px}
+.pre .e{font-size:11.5px;font-weight:700;letter-spacing:1.3px;text-transform:uppercase;color:var(--orange)}
+.pre .n{font-size:16px;font-weight:700;color:#9A3A0A;margin-top:3px}
+.pre .d{font-size:13.5px;color:#6B3A1E;margin-top:5px;line-height:1.38}
+.wl{position:absolute;font-size:13px;color:var(--muted);font-weight:600;background:var(--bg);padding:0 4px}
+.wlw{position:absolute;font-size:13px;color:var(--muted);font-weight:600;background:#fff;padding:0 4px}
+</style></head>
+<body><div class="stage">
+  <div class="title">WSO2 Integrator on Amazon Bedrock AgentCore</div>
+  <div class="legend"><span><i style="background:var(--teal)"></i>Amazon Bedrock AgentCore</span><span><i style="background:var(--orange)"></i>WSO2 Integrator</span></div>
+
+  <!-- front door: WSO2 integrations start agents -->
+  <div class="wbox" style="left:48px;top:176px;width:220px;height:344px"></div>
+  <div class="wh" style="left:64px;top:190px">WSO2 Integrator</div>
+  <div class="wt" style="left:64px;top:212px">Start the agent</div>
+  <div class="wn" style="left:64px;top:240px;width:190px">from the channels you already integrate</div>
+  <div class="chip" style="top:296px">APIs</div>
+  <div class="chip" style="top:358px">Chat &amp; messaging</div>
+  <div class="chip" style="top:420px">Events &amp; schedules</div>
+
+  <div class="acct"></div><div class="acct-l">YOUR AWS ACCOUNT</div>
+
+  <!-- runtime -->
+  <div class="rt"><span class="h" style="left:16px;top:10px;color:var(--teal)">AgentCore Runtime</span></div>
+  <div class="agent">
+    <div class="e">WSO2 Integrator</div>
+    <div class="n">Your AI agent</div>
+    <div class="row">Instructions<span>Role and rules</span></div>
+    <div class="row">Memory<span>Conversation history</span></div>
+    <div class="row">Tools<span>Through the Gateway</span></div>
+    <div class="row">Gated tools<span>Wait for approval</span></div>
+    <div class="row">Model<span>Amazon Bedrock</span></div>
+    <div class="row">Tracing<span>OpenTelemetry</span></div>
+    <div class="f">Holds no secrets.</div>
+  </div>
+  <div class="other"><div class="n">Agents on other frameworks</div></div>
+  <div class="idn"><div class="n">AgentCore Identity</div><div class="d">Short-lived tokens. Credentials stay in its vault.</div></div>
+
+  <!-- gateway -->
+  <div class="gw"><span class="h" style="left:14px;top:12px;color:#fff;opacity:.9">AgentCore Gateway</span></div>
+  <div class="gcard" style="top:214px"><div class="n">Identity check</div><div class="d">Agent's token verified on every call</div></div>
+  <div class="gcard" style="top:322px"><div class="n">Policy (Cedar)</div><div class="d">Default-deny access rules on every call</div></div>
+  <div class="gcard" style="top:430px"><div class="n">Filtered tool menu</div><div class="d">Agents see only tools they may call</div></div>
+  <div class="mdl"><div class="n">Amazon Bedrock</div><div class="d">Models, screened by Bedrock Guardrails</div></div>
+
+  <!-- WSO2 tool layer -->
+  <div class="wbox" style="left:930px;top:176px;width:368px;height:434px"></div>
+  <div class="wh" style="left:948px;top:190px">WSO2 Integrator</div>
+  <div class="wt" style="left:948px;top:212px">Your integrations as governed tools</div>
+  <div class="tcard" style="top:252px"><div class="n">MCP tool services</div><div class="d">Existing integrations, exposed as tools any agent can use</div></div>
+  <div class="tcard" style="top:342px"><div class="n">Integration APIs</div><div class="d">REST services published through the Gateway as tools</div></div>
+  <div class="feat" style="top:442px"><b>✓</b>Connectors to SaaS, ERP, databases and legacy systems</div>
+  <div class="feat" style="top:500px"><b>✓</b>Business rules and data mapping, typed and tested</div>
+  <div class="feat" style="top:558px"><b>✓</b>System credentials stay here, never in an agent</div>
+
+  <!-- systems -->
+  <div class="lbl" style="left:1360px;top:190px">Your systems</div>
+  <div class="sys" style="top:230px">CRM</div>
+  <div class="sys" style="top:304px">ERP</div>
+  <div class="sys" style="top:378px">Billing</div>
+  <div class="sys" style="top:452px">Databases</div>
+  <div class="sys" style="top:526px">Legacy systems</div>
+
+  <!-- bottom -->
+  <div class="bot cw"><div class="n">Amazon CloudWatch</div><div class="d">Each conversation recorded as a session: model turns, token usage, tool calls and policy decisions, from agents, Gateway and tools.</div></div>
+  <div class="bot ev"><div class="n">AgentCore Evaluations</div><div class="d">Scores live conversations from those traces, so quality is tracked over time.</div></div>
+
+  <svg class="wires" viewBox="0 0 1600 900">
+    <defs>
+      <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#172033"/></marker>
+      <marker id="t" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#0E7C7B"/></marker>
+      <marker id="g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#8A95A5"/></marker>
+    </defs>
+    <!-- front door starts the agent -->
+    <path d="M268,300 H334" fill="none" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <!-- identity issues tokens -->
+    <path d="M483,624 V602" fill="none" stroke="#0E7C7B" stroke-width="2" marker-end="url(#t)"/>
+    <!-- agents to gateway -->
+    <path d="M574,421 H658" fill="none" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M574,235 H658" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <!-- agent to models, directly -->
+    <path d="M574,493 H624 V648 H658" fill="none" stroke="#172033" stroke-width="2" marker-end="url(#a)"/>
+    <!-- gateway to WSO2 tools -->
+    <path d="M890,290 H946" fill="none" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <path d="M890,380 H946" fill="none" stroke="#172033" stroke-width="2.5" marker-end="url(#a)"/>
+    <!-- WSO2 tools to systems -->
+    <g stroke="#8A95A5" stroke-width="2" fill="none">
+      <path d="M1298,259 H1358" marker-end="url(#g)"/>
+      <path d="M1298,333 H1358" marker-end="url(#g)"/>
+      <path d="M1298,407 H1358" marker-end="url(#g)"/>
+      <path d="M1298,481 H1358" marker-end="url(#g)"/>
+      <path d="M1298,555 H1358" marker-end="url(#g)"/>
+    </g>
+    <!-- traces -->
+    <path d="M340,600 V732" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+    <path d="M866,560 V732" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+    <path d="M1010,610 V708 H888 V732" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+    <path d="M900,792 H928" fill="none" stroke="#0E7C7B" stroke-width="2" stroke-dasharray="6 5" marker-end="url(#t)"/>
+  </svg>
+  <div class="wl" style="left:592px;top:396px">tools</div>
+  <div class="wl" style="left:628px;top:568px">models</div>
+  <div class="wl" style="left:492px;top:604px">token</div>
+  <div class="wl" style="left:348px;top:712px">agent traces</div>
+  <div class="wl" style="left:742px;top:706px">policy decisions</div>
+  <div class="wl" style="left:1020px;top:650px">tool traces</div>
+</div></body></html>
