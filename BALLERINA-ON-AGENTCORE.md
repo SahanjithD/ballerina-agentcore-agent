@@ -5,9 +5,8 @@ same level of governance, observability and evaluation on AgentCore as a Python 
 with the code and configuration for each step. Everything marked ✅ was proven on a live
 deployment in `us-east-1`; anything else says what is missing.
 
-Hosting the tools themselves (MCP server on AgentCore Runtime, REST API on Lambda) is
-covered separately in [RECREATE.md](RECREATE.md). Deployment basics are in
-[DEPLOY.md](DEPLOY.md).
+The step-by-step deployment, with every file, IAM policy and command, is in
+[GUIDE.md](GUIDE.md). This document explains why each workaround is needed.
 
 Versions: Ballerina 2201.13.5, `ballerina/ai` 1, `ballerinax/ai.openai` 1.4.1,
 `ballerinax/ai.anthropic` 1.3.5, `ballerina/mcp` 1.3.0, OpenTelemetry Collector contrib.

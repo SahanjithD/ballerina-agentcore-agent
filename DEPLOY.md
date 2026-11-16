@@ -1,5 +1,10 @@
 # Deploying this Ballerina agent on Amazon Bedrock AgentCore Runtime
 
+> **Superseded by [GUIDE.md](GUIDE.md)**, which covers the whole deployment end to end
+> (tools, Gateway, agent, IAM, policy, observability, evaluation, identity) with plain CLI
+> commands. This file still describes the older setup in places: an Anthropic key in the
+> runtime, and the `deploy/` scripts.
+
 AgentCore Runtime does not care what language your agent is written in. It runs
 an **ARM64 container** that speaks a small HTTP contract, so a Ballerina service
 is a first-class citizen even though there is no Ballerina SDK for AgentCore.

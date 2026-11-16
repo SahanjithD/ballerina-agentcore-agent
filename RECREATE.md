@@ -1,5 +1,9 @@
 # Adding Ballerina tools to an Amazon Bedrock AgentCore Gateway
 
+> **Superseded by [GUIDE.md](GUIDE.md)**, which includes everything here plus the agent,
+> policies, observability, evaluation and identity. Part 7 below is out of date: the agent
+> now calls the model through the Gateway and holds no provider key.
+
 A complete, self-contained guide: every source file, Dockerfile and IAM policy you need is
 included inline. Follow it top to bottom and you will have a Ballerina MCP server and a
 Ballerina REST API callable as tools by an agent.
