@@ -1,5 +1,0 @@
-- claude should strictly verify secretes are safe in the module.
-- claude should alway ask before publishing anything and before run anything against aws
-- never put claude footprints on git
-- commit frequently with clear short commit messages
-- never put en/em dashes

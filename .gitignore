@@ -15,3 +15,6 @@ __pycache__/
 
 # macOS folder metadata.
 .DS_Store
+
+# Local instructions for the coding assistant.
+CLAUDE.md
