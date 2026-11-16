@@ -44,8 +44,18 @@ service / on new http:Listener(port) {
                 userId = headers.hasHeader("X-Amzn-Bedrock-AgentCore-Runtime-User-Id"),
                 oauth2CallbackUrl = headers.hasHeader("OAuth2CallbackUrl"));
 
+        // A fresh Gateway token for this invocation, as the AgentCore SDK's
+        // `@requires_access_token` fetches one per invocation. `()` when Identity is not in use.
         string|http:HeaderNotFoundError workloadToken = headers.getHeader("WorkloadAccessToken");
-        ai:Agent|error agent = agentFor(workloadToken is string ? workloadToken : ());
+        string?|error token = identityToken(workloadToken is string ? workloadToken : ());
+        if token is error {
+            log:printError("gateway token unavailable", token, session = session);
+            return <http:InternalServerError>{
+                body: <FailureResponse>{message: token.message(), status: "error"}
+            };
+        }
+
+        ai:Agent|error agent = agentFor(token, session);
         if agent is error {
             log:printError("agent unavailable", agent, session = session);
             return <http:InternalServerError>{
@@ -53,7 +63,14 @@ service / on new http:Listener(port) {
             };
         }
 
-        string|ai:Error response = agent.run(payload.prompt, sessionId = session);
+        // The toolkit sends this invocation's token on its tool calls.
+        ai:Context context = new;
+        if token is string {
+            context.set(GATEWAY_TOKEN_KEY, token);
+            log:printInfo("gateway token refreshed", tokenSource = "agentcore-identity", session = session);
+        }
+
+        string|ai:Error response = agent.run(payload.prompt, sessionId = session, context = context);
         if response is ai:Error {
             log:printError("agent run failed", response, session = session);
             return <http:InternalServerError>{

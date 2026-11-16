@@ -2,19 +2,20 @@ import ballerina/ai;
 import ballerina/http;
 import ballerina/log;
 import ballerina/time;
-import ballerinax/ai.openai;
+import ballerinax/ai.aws.bedrock;
+import ballerinax/ai.aws.dynamodb as memorydb;
+import ballerinax/aws.auth;
+import ballerinax/aws.secretmanager;
 
-configurable openai:OPEN_AI_MODEL_NAMES modelType = openai:GPT_4_1;
+// The model is called on Amazon Bedrock directly, signed with the runtime's execution role.
+// No token to expire and no provider key anywhere -- but model calls no longer pass through
+// the Gateway, so Cedar policy does not see them. The guardrail below is applied by Bedrock
+// itself on every call instead.
+configurable string bedrockModel = bedrock:NOVA_LITE;
 
-// Route model calls through the Gateway's inference target rather than straight to
-// api.openai.com. The Gateway then governs the model conversation the same way it
-// already governs tool calls -- Cedar policy and Bedrock Guardrails apply to every model
-// call -- and it holds the OpenAI key in the token vault, so the agent never sees it.
-//
-// Ends in `/v1`: the provider posts to `{serviceUrl}/chat/completions`, and the Gateway
-// serves the OpenAI Chat Completions API at `/inference/v1/chat/completions`.
-configurable string inferenceUrl =
-    "https://ballerina-agent-gatewa-01gzl3luj1.gateway.bedrock-agentcore.us-east-1.amazonaws.com/inference/v1";
+// A Bedrock guardrail applied to every model call. Leave the id empty to call without one.
+configurable string guardrailId = "";
+configurable string guardrailVersion = "";
 
 // An AgentCore Gateway -- or any MCP server -- speaking streamable HTTP. Its tools are
 // discovered at startup and offered to the agent alongside the local ones below.
@@ -31,6 +32,13 @@ configurable string mcpClientSecret = "";
 
 // Fallback for MCP servers that take a long-lived static token instead.
 configurable string mcpAuthToken = "";
+
+// Conversation memory in DynamoDB, so a session survives its container being replaced.
+// The secret holds the memory table's access key: {"accessKeyId": "...", "secretAccessKey": "..."}.
+// `ai.aws.dynamodb` cannot use the execution role yet, hence a key of its own, scoped to the table.
+// Leave the secret id empty to keep memory inside the container.
+configurable string memorySecretId = "";
+configurable string memoryTable = "ballerina_agent_memory";
 
 @ai:AgentTool
 isolated function sum(int a, int b) returns int => a + b;
@@ -59,7 +67,7 @@ type AgentIdentity record {|
 @ai:AgentTool
 isolated function whereAmIRunning() returns AgentIdentity => {
     servedBy: "ballerina-agent, in-process @ai:AgentTool",
-    language: "Ballerina 2201.13.5 (Swan Lake Update 13)",
+    language: "Ballerina 2201.14.1 (Swan Lake Update 14)",
     utcTime: time:utcToString(time:utcNow())
 };
 
@@ -78,15 +86,29 @@ isolated function mintGatewayToken() returns string|error {
     return token.access_token;
 }
 
-# Picks where the Gateway token comes from. AgentCore Identity when it is configured and
-# the Runtime passed a workload access token; otherwise a static token, then the client
-# secret -- the fallbacks exist so the agent still runs when invoked without a user id.
+# Gets this invocation's Gateway token from AgentCore Identity, when it is configured and
+# the Runtime passed a workload access token. Called on every invocation, as the AgentCore
+# SDK's `@requires_access_token` is: the workload token arrives fresh with each one, so the
+# Gateway token is never older than the invocation using it.
 #
 # + workloadToken - The invocation's `WorkloadAccessToken` header, if any
-# + return - A Gateway bearer token and where it came from, or an error
-isolated function gatewayToken(string? workloadToken) returns [string, string]|error {
+# + return - A Gateway bearer token, `()` if Identity is not in use, or an error
+isolated function identityToken(string? workloadToken) returns string?|error {
     if gatewayCredentialProvider != "" && workloadToken is string {
-        return [check gatewayTokenFromIdentity(workloadToken), "agentcore-identity"];
+        return gatewayTokenFromIdentity(workloadToken);
+    }
+    return ();
+}
+
+# Picks the Gateway token the agent is built with. This invocation's AgentCore Identity
+# token if there is one; otherwise a static token, then the client secret -- the fallbacks
+# exist so the agent still runs when invoked without a user id.
+#
+# + invocationToken - This invocation's token from AgentCore Identity, if any
+# + return - A Gateway bearer token and where it came from, or an error
+isolated function gatewayToken(string? invocationToken) returns [string, string]|error {
+    if invocationToken is string {
+        return [invocationToken, "agentcore-identity"];
     }
     if mcpAuthToken != "" {
         return [mcpAuthToken, "static-token"];
@@ -98,30 +120,65 @@ isolated function gatewayToken(string? workloadToken) returns [string, string]|e
             "workload access token, or configure a client secret");
 }
 
-# Builds the agent with a Gateway token.
+# Builds the DynamoDB-backed memory store. The access key is read from Secrets Manager with
+# the runtime's IAM role, so it never appears in the runtime configuration.
+#
+# + return - The memory store, or an error if the secret or the table cannot be reached
+isolated function memoryStore() returns ai:ShortTermMemoryStore|error {
+    secretmanager:Client secrets = check new ({region: awsRegion, auth: auth:DEFAULT_CREDENTIALS});
+    secretmanager:SecretValue secret = check secrets->getSecretValue(memorySecretId);
+    byte[]|string value = secret.value;
+    string secretString = value is string ? value : check string:fromBytes(value);
+    json keys = check secretString.fromJsonString();
+    return new memorydb:ShortTermMemoryStore({
+        region: awsRegion,
+        awsCredentials: {
+            accessKeyId: (check keys.accessKeyId).toString(),
+            secretAccessKey: (check keys.secretAccessKey).toString()
+        }
+    }, tableConfig = {tableName: memoryTable});
+}
+
+# Builds the agent.
 #
 # Built on the first invocation rather than at startup, because the workload access token
 # only exists per request. AgentCore gives each session its own container, so one agent per
-# container is one agent per session. The token is not renewed (the OpenAI provider takes a
-# fixed key), so a session outliving the token's hour fails its model calls.
+# container is one agent per session.
 #
-# + token - A Gateway bearer token
-# + return - The agent, or an error if the Gateway cannot be reached
-isolated function buildAgent(string token) returns ai:Agent|error {
-    // `ai:McpToolKit` calls `listTools` in its `init`, so the Gateway's (policy-filtered)
-    // tool list is fixed when the agent is built.
-    ai:McpToolKit gateway = check new (mcpServerUrl, auth = {token});
+# + token - A Gateway bearer token, or `()` to use the client credentials
+# + sessionId - The runtime session id, which becomes the Gateway policy session id
+# + return - The agent, or an error if the Gateway, the model or the memory cannot be reached
+isolated function buildAgent(string? token, string sessionId) returns ai:Agent|error {
+    // The toolkit lists tools in its `init`, so the Gateway's (policy-filtered) tool list
+    // is fixed when the agent is built. With client credentials the toolkit renews its own
+    // token. An Identity token is replaced on every invocation (see `service.bal`); a
+    // static token stops working when it expires.
+    GatewayToolKit gateway;
+    if token is () {
+        gateway = check new (mcpServerUrl, policySessionId(sessionId), (),
+            auth = {tokenUrl: mcpTokenUrl, clientId: mcpClientId, clientSecret: mcpClientSecret});
+    } else {
+        gateway = check new (mcpServerUrl, policySessionId(sessionId), token);
+    }
 
-    // The OpenAI provider sends its key as `Authorization: Bearer`, which is what the
-    // Gateway's CUSTOM_JWT authorizer reads.
-    ai:ModelProvider model = check new openai:ModelProvider(token, modelType, inferenceUrl);
+    ai:ModelProvider model;
+    if guardrailId != "" {
+        model = check new bedrock:RuntimeAmazonModelProvider(bedrockModel, auth:DEFAULT_CREDENTIALS,
+            awsRegion, guardrail = {guardrailIdentifier: guardrailId, guardrailVersion});
+    } else {
+        model = check new bedrock:RuntimeAmazonModelProvider(bedrockModel, auth:DEFAULT_CREDENTIALS, awsRegion);
+    }
+
+    ai:Memory memory = memorySecretId == ""
+        ? check new ai:ShortTermMemory()
+        : check new ai:ShortTermMemory(check memoryStore());
 
     // A plain literal for `tools`, so the Ballerina visual editor can display every tool.
     return check new ai:Agent(
         systemPrompt = {
             role: "Assistant",
             instructions: "You are a helpful assistant. Use the provided tools when they help answer the question."
-        }, memory = (), model = model, tools = [sum, multiply, whereAmIRunning, gateway]
+        }, memory = memory, model = model, tools = [sum, multiply, whereAmIRunning, gateway]
     );
 }
 
@@ -129,18 +186,19 @@ isolated ai:Agent? cachedAgent = ();
 
 # Returns this container's agent, building it on first use.
 #
-# + workloadToken - The invocation's `WorkloadAccessToken` header, if any
+# + invocationToken - This invocation's token from AgentCore Identity, if any
+# + sessionId - The invocation's runtime session id
 # + return - The agent, or an error
-isolated function agentFor(string? workloadToken) returns ai:Agent|error {
+isolated function agentFor(string? invocationToken, string sessionId) returns ai:Agent|error {
     lock {
         ai:Agent? existing = cachedAgent;
         if existing is ai:Agent {
             return existing;
         }
     }
-    [string, string] [token, tokenSource] = check gatewayToken(workloadToken);
+    [string, string] [token, tokenSource] = check gatewayToken(invocationToken);
     log:printInfo("gateway token obtained", tokenSource = tokenSource);
-    ai:Agent agent = check buildAgent(token);
+    ai:Agent agent = check buildAgent(tokenSource == "client-secret" ? () : token, sessionId);
     lock {
         cachedAgent = agent;
     }

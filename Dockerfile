@@ -3,13 +3,13 @@
 # AgentCore Runtime only runs linux/arm64 images -- always build with
 # `docker buildx build --platform linux/arm64`.
 
-FROM ballerina/ballerina:2201.13.5 AS build
+FROM ballerina/ballerina:2201.14.1 AS build
 WORKDIR /home/ballerina/agent
 COPY --chown=ballerina:ballerina Ballerina.toml Dependencies.toml ./
 COPY --chown=ballerina:ballerina *.bal ./
 RUN bal build
 
-FROM eclipse-temurin:21-jre-jammy
+FROM eclipse-temurin:25-jre-jammy
 WORKDIR /app
 COPY --from=build /home/ballerina/agent/target/bin/ballerina_agent.jar /app/agent.jar
 
@@ -22,7 +22,7 @@ COPY --from=build /home/ballerina/agent/target/bin/ballerina_agent.jar /app/agen
 # and OTTL is the only way to compute `gen_ai.usage.total_tokens` from the separate
 # input/output counts Ballerina emits. Contrib ships both `transform` and the
 # `sigv4auth` extension the X-Ray OTLP endpoint requires, and publishes arm64.
-COPY --from=otel/opentelemetry-collector-contrib:latest \
+COPY --from=otel/opentelemetry-collector-contrib:0.161.0 \
      /otelcol-contrib /usr/local/bin/otelcol
 COPY otel-collector.yaml /etc/otel/config.yaml
 COPY start.sh /app/start.sh
