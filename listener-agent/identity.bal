@@ -7,6 +7,8 @@
 // execution role's SigV4 signature, for an OAuth token from a credential provider whose
 // client secret lives in the Identity token vault.
 import ballerina/http;
+import ballerina/log;
+import ballerinax/ai.aws.bedrock.agentcore;
 import ballerinax/aws;
 import ballerinax/aws.auth;
 
@@ -22,6 +24,33 @@ final http:Client identityClient = check new (aws:resolveEndpoint("bedrock-agent
 
 // The default credential chain resolves the runtime's execution role inside AgentCore.
 final auth:CredentialProvider awsCredentials = check new (auth:DEFAULT_CREDENTIALS);
+
+# Gets this invocation's Gateway token from AgentCore Identity, starting from the workload
+# access token the listener put in `ctx`. Called on every invocation, as the AgentCore
+# SDK's `@requires_access_token` is, so the token is never older than the invocation.
+#
+# + ctx - The invocation's AgentCore context
+# + return - A Gateway bearer token, or an error when there is no workload access token
+#            or Identity refuses the exchange
+isolated function gatewayToken(agentcore:Context ctx) returns string|error {
+    // Presence only: the workload access token is a credential and its value must never
+    // be logged.
+    log:printInfo("identity context", session = ctx.sessionId, requestId = ctx.requestId,
+            workloadAccessToken = ctx.workloadAccessToken is string,
+            authorization = ctx.authorization is string);
+
+    // No workload access token, no Gateway token. The Runtime sends one only when the
+    // caller names a user (`--runtime-user-id`, needs InvokeAgentRuntimeForUser) or with
+    // JWT inbound auth.
+    string? workloadToken = ctx.workloadAccessToken;
+    if workloadToken is () {
+        return error("no workload access token: invoke with a runtime user id, or put a " +
+                "JWT authorizer on the runtime");
+    }
+    string token = check gatewayTokenFromIdentity(workloadToken);
+    log:printInfo("gateway token obtained", tokenSource = "agentcore-identity", session = ctx.sessionId);
+    return token;
+}
 
 # Exchanges the Runtime's workload access token for a Gateway token (M2M flow).
 #
