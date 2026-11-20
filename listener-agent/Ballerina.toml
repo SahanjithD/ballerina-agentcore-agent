@@ -1,0 +1,16 @@
+[package]
+org = "dasun"
+name = "ballerina_agent_listener"
+version = "0.1.0"
+distribution = "2201.14.0"
+
+[build-options]
+observabilityIncluded = true
+
+# `ai.aws.bedrock.agentcore` (the AgentCore listener) is not on Central yet. This takes
+# the 1.1.0 bala pushed to the local repository from module-ballerinax-ai.aws.bedrock.
+[[dependency]]
+org = "ballerinax"
+name = "ai.aws.bedrock"
+version = "1.1.0"
+repository = "local"
