@@ -30,6 +30,7 @@ service agentcore:InvocationService on agentcoreListener {
         ai:Context context = new;
         context.set(GATEWAY_TOKEN_KEY, token);
 
+        // Identity: `context = context` is added to the generated call.
         string reply = check aiAgent.run(message, sessionId = sessionId, context = context);
         return {response: reply, sessionId};
     }
