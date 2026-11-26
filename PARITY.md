@@ -242,7 +242,7 @@ Events carry metadata, which may be enough. Not verified.
 
 | Capability | Py | Java | .NET | Ballerina | What Ballerina needs |
 |---|---|---|---|---|---|
-| Traces to CloudWatch (X-Ray OTLP endpoint, SigV4 only) | ADOT, plus the managed collector on `localhost:4318` | ADOT; no managed collector | no managed collector | 🔧 a collector process in the container signs and forwards | A SigV4 OTLP exporter in `ballerina/otel`, or the managed collector for every entrypoint ([aws/agentcore-cli#1270](https://github.com/aws/agentcore-cli/issues/1270), open) |
+| Traces to CloudWatch (X-Ray OTLP endpoint, SigV4 only) | ADOT, plus the managed collector on `localhost:4318` | ADOT; no managed collector | no managed collector | 🔧 a collector process in the container signs and forwards | A SigV4 OTLP exporter in `ballerina/otel` ([#2994](https://github.com/wso2/product-integrator/issues/2994)), or the managed collector for every entrypoint ([aws/agentcore-cli#1270](https://github.com/aws/agentcore-cli/issues/1270), open) |
 | Resource identity from `OTEL_RESOURCE_ATTRIBUTES` | automatic | automatic | ? | 🔧 parsed in [start.sh](start.sh), applied by the collector | `ballerina/otel` should honour the standard `OTEL_RESOURCE_ATTRIBUTES` variable |
 | Numeric token counts | yes | yes | ? | 🔧 collector converts strings to ints | A typed attribute API in `ballerina/observe` (today `addTagToSpan` takes strings only; [#2818](https://github.com/wso2/product-integrator/issues/2818)) |
 | `gen_ai.usage.total_tokens` | yes | ? | ? | 🔧 collector sums the halves | Emit it in `ai.observe` |

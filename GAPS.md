@@ -38,7 +38,7 @@ Related: [PARITY.md](PARITY.md) (every AgentCore feature, all languages),
 | G2 | Governance | Model providers cannot authenticate to a Gateway inference target | 🔧 loopback forwarder (Anthropic); none for renewal (OpenAI) | [#2573](https://github.com/wso2/product-integrator/issues/2573) |
 | G3 | Governance | Durable human approvals only with `ai:ShortTermMemory` | ✅ for our setup; ❌ for a custom `ai:Memory` | [#2597](https://github.com/wso2/product-integrator/issues/2597) |
 | G4 | Governance | Tools defined inside the agent are outside Cedar | Same for every language | none |
-| O1 | Observability | `ballerina/otel` cannot sign exports (SigV4) | 🔧 collector in the container | no issue yet |
+| O1 | Observability | `ballerina/otel` cannot sign exports (SigV4) | 🔧 collector in the container | [#2994](https://github.com/wso2/product-integrator/issues/2994) |
 | O2 | Observability | Span attributes are strings only | 🔧 collector converts | [#2818](https://github.com/wso2/product-integrator/issues/2818) |
 | O3 | Observability | No flush before the program stops | ❌ | [#2822](https://github.com/wso2/product-integrator/issues/2822) |
 | O4 | Observability | `OTEL_RESOURCE_ATTRIBUTES` is not read | 🔧 `start.sh` plus collector | no issue yet |
@@ -361,7 +361,7 @@ exporters:
       authenticator: sigv4auth
 ```
 
-**Fix wanted.** A SigV4 option in `ballerina/otel`. No issue filed yet.
+**Fix wanted.** A SigV4 option in `ballerina/otel`. Issue: [#2994](https://github.com/wso2/product-integrator/issues/2994).
 
 ### O2. Span attributes are strings only 🔧
 
@@ -514,18 +514,19 @@ sent to AgentCore. No issue filed yet.
 Gaps above with no issue yet, in suggested order:
 
 1. O5: baggage and `session.id` on every span (blocks E3).
-2. O1: SigV4 signing in `ballerina/otel`.
-3. E1 and E2: a recognised scope name and the OpenTelemetry GenAI attribute names in
+2. E1 and E2: a recognised scope name and the OpenTelemetry GenAI attribute names in
    `ballerina/otel` and `ai.observe`.
-4. O4: honour `OTEL_RESOURCE_ATTRIBUTES`.
-5. I2: a per-request token provider for `ai:McpToolKit` and `mcp:StreamableHttpClient`, and
+3. O4: honour `OTEL_RESOURCE_ATTRIBUTES`.
+4. I2: a per-request token provider for `ai:McpToolKit` and `mcp:StreamableHttpClient`, and
    headers on `notifications/initialized`.
-6. O6: continue the incoming trace (after confirming which header AgentCore sends).
+5. O6: continue the incoming trace (after confirming which header AgentCore sends).
 
 ## Filed issues
 
 | Issue | Title | State |
 |---|---|---|
+| [#2995](https://github.com/wso2/product-integrator/issues/2995) | Support running a Ballerina agent on Amazon Bedrock AgentCore Runtime (listener) | open |
+| [#2994](https://github.com/wso2/product-integrator/issues/2994) | Support SigV4-signed OTLP exports in ballerina/otel | open |
 | [#2850](https://github.com/wso2/product-integrator/issues/2850) | Support AgentCore Identity as a token source for AI agents | open |
 | [#2835](https://github.com/wso2/product-integrator/issues/2835) | Upgrade ai.aws.dynamodb to aws.dynamodb 3.x to support IAM role and default credentials | open |
 | [#2823](https://github.com/wso2/product-integrator/issues/2823) | ai:McpToolKit cannot send custom HTTP headers to the MCP server | closed (workaround accepted) |
@@ -542,3 +543,4 @@ Gaps above with no issue yet, in suggested order:
 | Date | Change |
 |---|---|
 | 2026-10-29 | First version: identity, governance, observability and evaluations gaps, with library code, workarounds and issue links |
+| 2026-11-16 | Filed #2994 for O1 (SigV4 signing in `ballerina/otel`) and #2995 for the AgentCore Runtime listener |
